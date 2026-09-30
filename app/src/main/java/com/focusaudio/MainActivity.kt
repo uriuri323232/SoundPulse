@@ -241,8 +241,8 @@ fun fmt(ms: Long): String { val s = (ms.coerceAtLeast(0) / 1000); return if (s >
             Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
                 AssistChip({ val l = listOf(1f, 1.25f, 1.5f, 2f, 2.5f, 3f); speed = l[(l.indexOf(speed) + 1) % l.size]; runCatching { p.setPlaybackSpeed(speed) } },
                     { Text("${speed}x") }, leadingIcon = { Icon(Icons.Rounded.Speed, null, Modifier.size(18.dp)) })
-                FilterChip(d.fx, { v -> set { it.copy(fx = !d.fx) }; Audio.fx?.on(!d.fx) }, { Text("מעבד דיבור") })
-                FilterChip(skip, { skip = !skip; runCatching { p.skipSilenceEnabled = skip } }, { Text("דלג שקטים") })
+                FilterChip(selected = d.fx, onClick = { val nv = !d.fx; set { it.copy(fx = nv) }; Audio.fx?.on(nv) }, label = { Text("מעבד דיבור") })
+                FilterChip(selected = skip, onClick = { skip = !skip; runCatching { p.skipSilenceEnabled = skip } }, label = { Text("דלג שקטים") })
             }
         }
         item {
