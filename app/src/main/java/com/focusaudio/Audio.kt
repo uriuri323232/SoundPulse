@@ -61,10 +61,10 @@ object Audio {
         .setHandleAudioBecomingNoisy(true).setWakeMode(C.WAKE_MODE_LOCAL).build()
         .also { p = it; fx = Fx(it.audioSessionId) }
 
-    fun play(c: Context, uri: Uri, name: String) {
+    fun play(c: Context, uri: Uri, name: String, startMs: Long = 0L) {
         val p = player(c)
         runCatching {
-            p.setMediaItem(MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(name).build()).build())
+            p.setMediaItem(MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(name).build()).build(), startMs)
             p.prepare(); p.play()
         }
         runCatching { ContextCompat.startForegroundService(c.applicationContext, Intent(c.applicationContext, PlaybackService::class.java)) }
