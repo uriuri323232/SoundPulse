@@ -38,14 +38,17 @@ class Fx(sid: Int) {
     }.getOrNull() else null
 
     init {
-        eq?.let { e ->
-            val r = e.bandLevelRange
-            for (i in 0 until e.numberOfBands) {
-                val hz = e.getCenterFreq(i.toShort()) / 1000
-                val g = when { hz < 120 -> -1500; hz in 300..4000 -> 700; hz > 8000 -> -1200; else -> 0 }
-                e.setBandLevel(i.toShort(), g.coerceIn(r[0].toInt(), r[1].toInt()).toShort())
+        runCatching {
+            eq?.let { e ->
+                val r = e.bandLevelRange
+                for (i in 0 until e.numberOfBands) {
+                    val hz = e.getCenterFreq(i.toShort()) / 1000
+                    val g = when { hz < 120 -> -1500; hz in 300..4000 -> 700; hz > 8000 -> -1200; else -> 0 }
+                    e.setBandLevel(i.toShort(), g.coerceIn(r[0].toInt(), r[1].toInt()).toShort())
+                }
             }
         }
+        on(true)
     }
     fun on(b: Boolean) { runCatching { eq?.enabled = b; dp?.enabled = b } }
 }
@@ -60,9 +63,11 @@ object Audio {
 
     fun play(c: Context, uri: Uri, name: String) {
         val p = player(c)
-        p.setMediaItem(MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(name).build()).build())
-        p.prepare(); p.play()
-        ContextCompat.startForegroundService(c, Intent(c, PlaybackService::class.java))
+        runCatching {
+            p.setMediaItem(MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(name).build()).build())
+            p.prepare(); p.play()
+        }
+        runCatching { ContextCompat.startForegroundService(c.applicationContext, Intent(c.applicationContext, PlaybackService::class.java)) }
     }
 }
 
@@ -77,20 +82,37 @@ class PlaybackService : MediaSessionService() {
 class Speaker(ctx: Context) {
     private var t: TextToSpeech? = null
     init { t = TextToSpeech(ctx.applicationContext) { if (it == TextToSpeech.SUCCESS) t?.language = Locale("he", "IL") } }
-    fun say(s: String) { t?.speak(s, TextToSpeech.QUEUE_FLUSH, null, "f") }
+    fun say(s: String) { runCatching { t?.speak(s, TextToSpeech.QUEUE_FLUSH, null, "f") } }
+    fun shutdown() { runCatching { t?.stop(); t?.shutdown() } }
 }
 
 /** Loudness envelope: one value (0..1) per 100 ms, used for the waveform, silence detection and chapters. */
-suspend fun analyze(ctx: Context, uri: Uri): FloatArray = withContext(Dispatchers.IO) {
+suspend fun analyze(ctx: Context, uri: Uri, key: String = uri.toString()): FloatArray = withContext(Dispatchers.IO) {
+    val cf = java.io.File(ctx.cacheDir, "env_" + key.hashCode() + ".bin")
+    runCatching {
+        if (cf.exists()) {
+            val bb = java.nio.ByteBuffer.wrap(cf.readBytes()).asFloatBuffer()
+            return@withContext FloatArray(bb.remaining()).also { bb.get(it) }
+        }
+    }
+    val res = decodeEnvelope(ctx, uri)
+    runCatching {
+        val bb = java.nio.ByteBuffer.allocate(res.size * 4); bb.asFloatBuffer().put(res); cf.writeBytes(bb.array())
+    }
+    res
+}
+
+private fun decodeEnvelope(ctx: Context, uri: Uri): FloatArray {
     val ex = MediaExtractor(); ex.setDataSource(ctx, uri, null)
     val ti = (0 until ex.trackCount).first { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)!!.startsWith("audio/") }
     ex.selectTrack(ti)
     val f = ex.getTrackFormat(ti)
-    val per = f.getInteger(MediaFormat.KEY_SAMPLE_RATE) * f.getInteger(MediaFormat.KEY_CHANNEL_COUNT) / 10
+    val per = (f.getInteger(MediaFormat.KEY_SAMPLE_RATE) * f.getInteger(MediaFormat.KEY_CHANNEL_COUNT) / 10).coerceAtLeast(1)
     val codec = MediaCodec.createDecoderByType(f.getString(MediaFormat.KEY_MIME)!!)
-    codec.configure(f, null, null, 0); codec.start()
     val info = MediaCodec.BufferInfo(); val out = ArrayList<Float>()
     var eos = false; var done = false; var mx = 0; var n = 0
+    try {
+    codec.configure(f, null, null, 0); codec.start()
     while (!done) {
         if (!eos) {
             val i = codec.dequeueInputBuffer(5000)
@@ -108,14 +130,14 @@ suspend fun analyze(ctx: Context, uri: Uri): FloatArray = withContext(Dispatcher
             if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) done = true
         }
     }
-    codec.stop(); codec.release(); ex.release()
-    out.toFloatArray()
+    } finally { runCatching { codec.stop() }; runCatching { codec.release() }; runCatching { ex.release() } }
+    return out.toFloatArray()
 }
 
 /** Chapter starts (ms): the middle of any silence of 2 seconds or more, with at least 2 minutes between chapters. */
 fun chapters(env: FloatArray?): List<Long> {
     if (env == null || env.isEmpty()) return emptyList()
-    val thr = maxOf(0.01f, env.max() * 0.05f)
+    val thr = maxOf(0.01f, (env.maxOrNull() ?: 0f) * 0.05f)
     val cuts = ArrayList<Long>(); var last = 0; var i = 0
     while (i < env.size) {
         if (env[i] < thr) {

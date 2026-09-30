@@ -14,14 +14,20 @@ val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
 class Store(ctx: Context) {
     private val f = File(ctx.filesDir, "focus.json")
-    fun load(): AppData = runCatching { json.decodeFromString(AppData.serializer(), f.readText()) }.getOrDefault(AppData())
-    fun save(d: AppData) { f.writeText(json.encodeToString(AppData.serializer(), d)) }
+    fun load(): AppData = runCatching { json.decodeFromString(AppData.serializer(), f.readText()) }
+        .recoverCatching { json.decodeFromString(AppData.serializer(), File(f.path + ".tmp").readText()) }.getOrDefault(AppData())
+    @Synchronized fun save(d: AppData) = runCatching {
+        val tmp = File(f.path + ".tmp")
+        tmp.writeText(json.encodeToString(AppData.serializer(), d))
+        if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
+    }
 }
 
 class Clip(val name: String, val uri: Uri, val size: Long, val mod: Long, val audio: Boolean)
 
 /** Lists the files of the chosen folder (works for internal storage and SD card via the system picker). */
-fun clips(ctx: Context, tree: Uri): List<Clip> =
+fun clips(ctx: Context, tree: Uri): List<Clip> = runCatching {
     DocumentFile.fromTreeUri(ctx, tree)?.listFiles()?.filter { it.isFile }?.map {
         Clip(it.name ?: "?", it.uri, it.length(), it.lastModified(), (it.type ?: "").startsWith("audio/"))
     }?.sortedBy { it.name.lowercase() } ?: emptyList()
+}.getOrDefault(emptyList())

@@ -18,7 +18,7 @@ class Scan(val dups: List<Clip>, val old: List<Clip>, val junk: List<Clip>)
 
 private fun hash(ctx: Context, u: Uri): String {
     val md = MessageDigest.getInstance("MD5"); val b = ByteArray(65536)
-    ctx.contentResolver.openInputStream(u)?.use { s -> while (true) { val n = s.read(b); if (n < 0) break; md.update(b, 0, n) } }
+    runCatching { ctx.contentResolver.openInputStream(u)?.use { s -> while (true) { val n = s.read(b); if (n < 0) break; md.update(b, 0, n) } } }
     return md.digest().joinToString("") { "%02x".format(it) }
 }
 
@@ -33,24 +33,27 @@ fun scan(ctx: Context, all: List<Clip>, oldDays: Int = 90): Scan {
     return Scan(dups, old, junk)
 }
 
-fun delete(ctx: Context, list: List<Clip>) = list.forEach { DocumentFile.fromSingleUri(ctx, it.uri)?.delete() }
+fun delete(ctx: Context, list: List<Clip>) = list.forEach { runCatching { DocumentFile.fromSingleUri(ctx, it.uri)?.delete() } }
 
 /** Re-encodes to AAC (.m4a) at 48 kbps. The original is deleted only if the result is clearly smaller. */
 fun compress(ctx: Context, tree: Uri, c: Clip, done: (Boolean) -> Unit) {
-    val out = File(ctx.cacheDir, "c_${c.name}.m4a")
+    val out = File(ctx.cacheDir, "c_${c.uri.toString().hashCode()}.m4a")
     val enc = DefaultEncoderFactory.Builder(ctx)
         .setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(48000).build()).build()
     Transformer.Builder(ctx).setAudioMimeType(MimeTypes.AUDIO_AAC).setEncoderFactory(enc)
         .addListener(object : Transformer.Listener {
             override fun onCompleted(composition: Composition, exportResult: ExportResult) {
-                var ok = false
-                if (out.length() in 1 until (c.size * 0.75).toLong()) runCatching {
-                    val nf = DocumentFile.fromTreeUri(ctx, tree)!!.createFile("audio/mp4", c.name.substringBeforeLast('.') + ".m4a")!!
-                    ctx.contentResolver.openOutputStream(nf.uri)!!.use { o -> out.inputStream().use { it.copyTo(o) } }
-                    DocumentFile.fromSingleUri(ctx, c.uri)?.delete(); ok = true
-                }
-                out.delete(); done(ok)
+                Thread {
+                    var ok = false
+                    if (out.length() in 1 until (c.size * 0.75).toLong()) runCatching {
+                        val nf = DocumentFile.fromTreeUri(ctx, tree)!!.createFile("audio/mp4", c.name.substringBeforeLast('.') + ".m4a")!!
+                        ctx.contentResolver.openOutputStream(nf.uri)!!.use { o -> out.inputStream().use { it.copyTo(o) } }
+                        DocumentFile.fromSingleUri(ctx, c.uri)?.delete(); ok = true
+                    }
+                    out.delete()
+                    android.os.Handler(android.os.Looper.getMainLooper()).post { done(ok) }
+                }.start()
             }
             override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) { out.delete(); done(false) }
-        }).build().start(MediaItem.fromUri(c.uri), out.absolutePath)
+        }).build().let { tr -> runCatching { tr.start(MediaItem.fromUri(c.uri), out.absolutePath) }.onFailure { done(false) } }
 }
