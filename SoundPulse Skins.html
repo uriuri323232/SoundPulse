@@ -1,0 +1,307 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SoundPulse Skins</title>
+<style>
+/* Layout: a centered phone mock of the player screen; a theme switcher re-skins it live.
+   Single controlled visual world (the switcher is the point) — every color set explicitly via tokens. */
+:root{
+  --bg:#0E1416; --bg2:#0b1012; --surface:rgba(255,255,255,.055); --surface2:rgba(255,255,255,.09);
+  --stroke:rgba(255,255,255,.10); --fg:#EAF2F1; --muted:#8aa0a0; --accent:#2DD4BF; --accent2:#7C9CF5;
+  --glow:rgba(45,212,191,.55); --aurora:1; --grid:0; --onAccent:#04221f;
+  --font-d:"Rubik",system-ui,sans-serif; --font-b:"Heebo",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:
+  radial-gradient(120% 80% at 50% -10%, var(--bg2), var(--bg) 60%);
+  color:var(--fg);font-family:var(--font-b);-webkit-font-smoothing:antialiased;
+  display:flex;flex-direction:column;align-items:center;gap:18px;
+  padding-block:24px;padding-inline:16px}
+.wrap{width:100%;max-width:1040px;display:flex;flex-direction:column;align-items:center;gap:22px}
+.lead{width:100%;max-width:560px;text-align:center;display:flex;flex-direction:column;gap:6px}
+.lead h1{font-family:var(--font-d);font-weight:800;font-size:clamp(26px,6vw,38px);margin:0;letter-spacing:-.01em;text-wrap:balance}
+.lead h1 b{color:var(--accent)}
+.lead p{margin:0;color:var(--muted);font-size:15px;line-height:1.5}
+
+/* theme switcher */
+.skins{width:100%;max-width:560px;display:flex;flex-direction:column;gap:10px}
+.skins .cap{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.skinrow{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.skinrow::-webkit-scrollbar{display:none}
+.skin{flex:0 0 auto;cursor:pointer;border:1px solid var(--stroke);background:var(--surface);
+  border-radius:14px;padding:9px 13px;display:flex;align-items:center;gap:9px;color:var(--fg);
+  font-family:var(--font-b);font-size:14px;transition:.18s;white-space:nowrap}
+.skin:hover{background:var(--surface2)}
+.skin[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent), 0 6px 20px -8px var(--glow)}
+.sw{width:30px;height:18px;border-radius:6px;position:relative;overflow:hidden;flex:0 0 auto}
+.sw i{position:absolute;inset:0}
+
+/* phone */
+.phone{width:100%;max-width:392px;aspect-ratio:9/19.3;position:relative;border-radius:40px;
+  padding:11px;background:linear-gradient(160deg,#20272a,#0c1012);
+  box-shadow:0 40px 90px -30px rgba(0,0,0,.8), 0 0 0 2px rgba(255,255,255,.04), inset 0 1px 1px rgba(255,255,255,.08)}
+.screen{position:absolute;inset:11px;border-radius:30px;overflow:hidden;background:
+  radial-gradient(130% 90% at 50% -8%, var(--bg2), var(--bg) 58%);display:flex;flex-direction:column}
+.aura{position:absolute;inset:-30%;z-index:0;pointer-events:none;opacity:var(--aurora);
+  background:
+   radial-gradient(38% 30% at 22% 20%, color-mix(in oklab, var(--accent) 60%, transparent), transparent 70%),
+   radial-gradient(42% 34% at 82% 26%, color-mix(in oklab, var(--accent2) 55%, transparent), transparent 70%),
+   radial-gradient(45% 40% at 60% 90%, color-mix(in oklab, var(--accent) 38%, transparent), transparent 72%);
+  filter:blur(26px) saturate(1.1);animation:drift 16s ease-in-out infinite alternate}
+.grid{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:var(--grid);
+  background-image:linear-gradient(color-mix(in oklab,var(--accent) 40%,transparent) 1px,transparent 1px),
+    linear-gradient(90deg,color-mix(in oklab,var(--accent2) 40%,transparent) 1px,transparent 1px);
+  background-size:30px 30px;mask-image:linear-gradient(to top,#000,transparent 72%);transform:perspective(320px) rotateX(58deg) translateY(28%);transform-origin:bottom}
+@keyframes drift{from{transform:translate(-3%,-2%) scale(1.05)}to{transform:translate(4%,3%) scale(1.14)}}
+@media (prefers-reduced-motion:reduce){.aura{animation:none}}
+
+.ui{position:relative;z-index:1;display:flex;flex-direction:column;height:100%;padding:16px 15px 0}
+.statbar{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.brand{display:flex;align-items:center;gap:7px;color:var(--fg);font-family:var(--font-d);font-weight:700;letter-spacing:.01em}
+.brand svg{width:18px;height:18px;color:var(--accent)}
+
+.np{margin-top:14px;display:flex;flex-direction:column;gap:3px}
+.np .ch{color:var(--accent);font-size:12px;font-weight:600;letter-spacing:.02em}
+.np h2{margin:0;font-family:var(--font-d);font-weight:700;font-size:21px;line-height:1.25}
+.np .sub{color:var(--muted);font-size:12.5px}
+
+.viz{position:relative;margin-top:12px;border-radius:20px;background:var(--surface);
+  border:1px solid var(--stroke);padding:12px 12px 10px;backdrop-filter:blur(8px)}
+canvas{display:block;width:100%;height:120px}
+.tline{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.seek{margin-top:7px;height:4px;border-radius:4px;background:var(--surface2);overflow:hidden}
+.seek i{display:block;height:100%;width:38%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px}
+
+.transport{margin-top:16px;display:flex;align-items:center;justify-content:center;gap:16px}
+.tbtn{width:48px;height:48px;border-radius:50%;border:1px solid var(--stroke);background:var(--surface);
+  color:var(--fg);display:grid;place-items:center;cursor:pointer;transition:.15s}
+.tbtn:hover{background:var(--surface2)}
+.tbtn svg{width:24px;height:24px}
+.play{position:relative;width:76px;height:76px;border-radius:50%;border:none;cursor:pointer;
+  background:radial-gradient(circle at 35% 30%, color-mix(in oklab,var(--accent) 85%,#fff 15%), var(--accent) 60%, color-mix(in oklab,var(--accent2) 70%, var(--accent)) 110%);
+  color:var(--onAccent);display:grid;place-items:center;
+  box-shadow:0 10px 34px -8px var(--glow), inset 0 1px 2px rgba(255,255,255,.4)}
+.play svg{width:34px;height:34px}
+.ring{position:absolute;inset:-7px;border-radius:50%;border:2px solid var(--accent);opacity:.5;animation:pulse 2.4s ease-out infinite}
+@keyframes pulse{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.28);opacity:0}}
+@media (prefers-reduced-motion:reduce){.ring{animation:none;opacity:.35}}
+
+.chips{display:flex;gap:8px;overflow-x:auto;margin-top:16px;padding-bottom:2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap;
+  padding:7px 11px;border-radius:11px;border:1px solid var(--stroke);background:var(--surface);color:var(--muted)}
+.chip svg{width:15px;height:15px}
+.chip.on{color:var(--onAccent);background:var(--accent);border-color:transparent;font-weight:600}
+.chip.on svg{color:var(--onAccent)}
+
+.spring{flex:1}
+.nav{display:flex;justify-content:space-around;align-items:center;padding:10px 6px calc(10px + env(safe-area-inset-bottom,0px));
+  border-top:1px solid var(--stroke);background:color-mix(in oklab,var(--bg) 70%, transparent);backdrop-filter:blur(10px)}
+.nav a{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--muted);font-size:10.5px;text-decoration:none}
+.nav a.sel{color:var(--accent)}
+.nav svg{width:22px;height:22px}
+
+/* features list under phone */
+.feat{width:100%;max-width:880px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.card{border:1px solid var(--stroke);background:var(--surface);border-radius:16px;padding:14px 15px;display:flex;flex-direction:column;gap:5px}
+.card h3{margin:0;font-family:var(--font-d);font-size:15px;display:flex;align-items:center;gap:8px}
+.card h3 svg{width:17px;height:17px;color:var(--accent)}
+.card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.note{width:100%;max-width:560px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.6}
+</style>
+
+<div class="wrap" dir="rtl">
+  <div class="lead">
+    <h1>SoundPulse — <b>ערכות עיצוב</b></h1>
+    <p>בחר ערכה וראה את מסך הנגן משתנה חי. כל הערכות האלה ייכנסו לאפליקציה וניתן יהיה להחליף ביניהן בהגדרות.</p>
+  </div>
+
+  <div class="skins" dir="rtl">
+    <div class="cap">בחר ערכת עיצוב</div>
+    <div class="skinrow" id="skinrow"></div>
+  </div>
+
+  <div class="phone">
+    <div class="screen">
+      <div class="aura"></div>
+      <div class="grid"></div>
+      <div class="ui" dir="rtl">
+        <div class="statbar">
+          <span class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h2l2-7 3 15 3-11 2 5h6"/></svg>SoundPulse</span>
+          <span id="clock">21:19</span>
+        </div>
+
+        <div class="np">
+          <span class="ch">פרק 3 · מתוך 7</span>
+          <h2>שיעור — פרשת וירא</h2>
+          <span class="sub">נעצרת ב-12:04 · 3 סימונים</span>
+        </div>
+
+        <div class="viz">
+          <canvas id="viz" width="700" height="240"></canvas>
+          <div class="tline"><span id="pos">12:41</span><span>−28:50</span></div>
+          <div class="seek"><i id="seekfill"></i></div>
+        </div>
+
+        <div class="transport">
+          <button class="tbtn" aria-label="הקודם"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 6v12h2V6H7zm3 6l8.5 6V6L10 12z"/></svg></button>
+          <button class="tbtn" aria-label="אחורה 30">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 7V3L6 7l5 4V8a6 6 0 1 1-6 6"/><text x="12.5" y="19" font-size="7" fill="currentColor" stroke="none" text-anchor="middle" font-family="sans-serif">30</text></svg></button>
+          <button class="play" id="playbtn" aria-label="נגן או השהה"><span class="ring"></span>
+            <svg id="playicon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+          <button class="tbtn" aria-label="קדימה 30">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7V3l5 4-5 4V8a6 6 0 1 0 6 6"/><text x="11.5" y="19" font-size="7" fill="currentColor" stroke="none" text-anchor="middle" font-family="sans-serif">30</text></svg></button>
+          <button class="tbtn" aria-label="הבא"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 6v12h2V6h-2zM6 18l8.5-6L6 6v12z"/></svg></button>
+        </div>
+
+        <div class="chips">
+          <span class="chip on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 3L4 14h7l-1 7 9-11h-7l1-7z"/></svg>1.5x</span>
+          <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4M9 1h6"/></svg>טיימר שינה</span>
+          <span class="chip on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>מעבד דיבור</span>
+          <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h10M4 12h7M4 17h12"/></svg>A–B חזרה</span>
+          <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>דלג שקטים</span>
+        </div>
+
+        <div class="spring"></div>
+        <div class="nav">
+          <a class="sel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h3l2-6 3 12 3-9 2 3h5"/></svg>נגן</a>
+          <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5"/></svg>ספרייה</a>
+          <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg>סימונים</a>
+          <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>אחסון</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="feat" dir="rtl" id="feat"></div>
+  <div class="note">זו תצוגה מקדימה בלבד (לא האפליקציה). אחרי שתבחר, אבנה את הערכות כסקינים אמיתיים בתוך SoundPulse — עם מעבר חלק ביניהן מתוך ההגדרות.</div>
+</div>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;800&family=Heebo:wght@400;500;700&display=swap">
+<script>
+const THEMES={
+  aurora:{name:"Aurora",bg:"#0E1416",bg2:"#0a1012",accent:"#2DD4BF",accent2:"#7C9CF5",fg:"#EAF2F1",muted:"#8aa0a0",glow:"rgba(45,212,191,.55)",onAccent:"#04221f",aurora:1,grid:0,viz:"bars"},
+  midnight:{name:"Midnight",bg:"#0B0D10",bg2:"#07090c",accent:"#38BDF8",accent2:"#60A5FA",fg:"#E8EDF2",muted:"#7f8b99",glow:"rgba(56,189,248,.45)",onAccent:"#041018",aurora:0,grid:0,viz:"line"},
+  synthwave:{name:"Synthwave",bg:"#0b0118",bg2:"#05000d",accent:"#FF2E97",accent2:"#28E6FF",fg:"#FCE9FF",muted:"#9a7fb0",glow:"rgba(255,46,151,.5)",onAccent:"#1a0012",aurora:.55,grid:1,viz:"bars"},
+  velvet:{name:"Velvet",bg:"#141021",bg2:"#0d0a18",accent:"#A78BFA",accent2:"#F0A6FF",fg:"#EEE8FB",muted:"#9488b5",glow:"rgba(167,139,250,.5)",onAccent:"#160f29",aurora:1,grid:0,viz:"bars"},
+  ember:{name:"Ember",bg:"#141010",bg2:"#0d0909",accent:"#FB923C",accent2:"#F25C8A",fg:"#F6ECE6",muted:"#a08d84",glow:"rgba(251,146,60,.5)",onAccent:"#241206",aurora:1,grid:0,viz:"bars"},
+  daylight:{name:"Daylight",bg:"#EEF2F3",bg2:"#ffffff",accent:"#0E9594",accent2:"#3D5A80",fg:"#12201f",muted:"#5d7170",glow:"rgba(14,149,148,.35)",onAccent:"#ffffff",aurora:.5,grid:0,viz:"bars",light:1}
+};
+const FEATURES=[
+  ["גל-קול חי","הקשה או גרירה מזיזה את ההשמעה. פרקים מזוהים אוטומטית לפי שקטים."],
+  ["המשך מאיפה שעצרת","זוכר את המקום בכל הקלטה וחוזר 3 שניות אחורה כדי להיכנס לעניין."],
+  ["מהירות 0.75x–3x","נשמרת בין הפעלות, עם מעבד דיבור שמבהיר את הדיבור."],
+  ["A–B חזרה ולולאה","סמן שתי נקודות וההשמעה חוזרת עליהן — מצוין לחזרה על קטע."],
+  ["דגלים וסימניות","עם הערה, דגלים וסינון. כל הסימונים מכל ההקלטות במקום אחד."],
+  ["מצב הליכה (מחוות)","כל המסך הופך לשלט מחוות עם רטט, קול והקראה — בלי להסתכל."],
+  ["טיימר שינה והמשך אוטומטי","נכבה לבד או ממשיך להקלטה הבאה בסוף."],
+  ["ניהול אחסון","איתור כפולים, ישנים וזבל, וכיווץ קבצים שהושמעו ל-AAC."]
+];
+
+const root=document.documentElement;
+function apply(t){
+  const s=getComputedStyle(root);
+  root.style.setProperty('--bg',t.bg); root.style.setProperty('--bg2',t.bg2);
+  root.style.setProperty('--accent',t.accent); root.style.setProperty('--accent2',t.accent2);
+  root.style.setProperty('--fg',t.fg); root.style.setProperty('--muted',t.muted);
+  root.style.setProperty('--glow',t.glow); root.style.setProperty('--onAccent',t.onAccent);
+  root.style.setProperty('--aurora',t.aurora); root.style.setProperty('--grid',t.grid);
+  root.style.setProperty('--surface', t.light?'rgba(16,40,40,.05)':'rgba(255,255,255,.055)');
+  root.style.setProperty('--surface2', t.light?'rgba(16,40,40,.09)':'rgba(255,255,255,.09)');
+  root.style.setProperty('--stroke', t.light?'rgba(16,40,40,.12)':'rgba(255,255,255,.10)');
+  root.style.setProperty('color-scheme', t.light?'light':'dark');
+  cur=t;
+}
+let cur=THEMES.aurora;
+
+// theme switcher chips
+const row=document.getElementById('skinrow');
+Object.entries(THEMES).forEach(([k,t],i)=>{
+  const b=document.createElement('button');
+  b.className='skin'; b.setAttribute('aria-pressed', i===0);
+  b.innerHTML=`<span class="sw"><i style="background:linear-gradient(135deg,${t.bg2},${t.bg})"></i>`+
+    `<i style="background:radial-gradient(60% 60% at 30% 30%, ${t.accent}, transparent 70%),radial-gradient(60% 60% at 80% 70%, ${t.accent2}, transparent 70%);opacity:.95"></i></span>${t.name}`;
+  b.onclick=()=>{apply(t);[...row.children].forEach(c=>c.setAttribute('aria-pressed',false));b.setAttribute('aria-pressed',true);try{localStorage.setItem('sp-skin',k)}catch(e){}};
+  row.appendChild(b);
+});
+
+// feature cards
+const feat=document.getElementById('feat');
+FEATURES.forEach(([h,p])=>{
+  const d=document.createElement('div');d.className='card';
+  d.innerHTML=`<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>${h}</h3><p>${p}</p>`;
+  feat.appendChild(d);
+});
+
+// restore saved
+try{const k=localStorage.getItem('sp-skin'); if(k&&THEMES[k]){apply(THEMES[k]); [...row.children].forEach((c,i)=>c.setAttribute('aria-pressed', Object.keys(THEMES)[i]===k));}}catch(e){}
+
+// play/pause toggle
+let playing=true;
+const pib=document.getElementById('playbtn'), pic=document.getElementById('playicon');
+pib.onclick=()=>{playing=!playing;pic.innerHTML=playing?'<path d="M8 5v14l11-7z"/>':'<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>';};
+
+// visualizer
+const cv=document.getElementById('viz'), g=cv.getContext('2d');
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+let W=cv.width,H=cv.height;
+const BARS=64; const seed=Array.from({length:BARS},(_,i)=>Math.sin(i*0.5)*0.5+0.5);
+let t0=0;
+function hex(c){return c.trim();}
+function draw(ts){
+  const dt=ts/1000; const a=cur.accent, a2=cur.accent2;
+  g.clearRect(0,0,W,H);
+  const cy=H/2, gap=W/BARS, play=playing&&!reduce;
+  // playhead progress
+  const prog=0.44;
+  const grad=g.createLinearGradient(0,0,W,0); grad.addColorStop(0,a); grad.addColorStop(1,a2);
+  g.save();
+  if(cur.viz==='line'){
+    // single glowing waveform line (midnight)
+    g.lineWidth=3; g.strokeStyle=grad; g.shadowColor=a; g.shadowBlur=14; g.lineCap='round';
+    g.beginPath();
+    for(let x=0;x<=W;x+=4){
+      const n=Math.sin(x*0.03+dt*2)*0.5+Math.sin(x*0.011-dt*1.3)*0.4;
+      const env=0.35+0.3*Math.sin(x*0.6/W*Math.PI);
+      const amp=(play?1:0.25)*env*n*(H*0.34);
+      const y=cy+amp; x===0?g.moveTo(x,y):g.lineTo(x,y);
+    }
+    g.stroke();
+    // mirror faint
+    g.globalAlpha=.25; g.beginPath();
+    for(let x=0;x<=W;x+=4){const n=Math.sin(x*0.03+dt*2)*0.5+Math.sin(x*0.011-dt*1.3)*0.4;const env=0.35+0.3*Math.sin(x*0.6/W*Math.PI);const amp=(play?1:0.25)*env*n*(H*0.34);const y=cy-amp;x===0?g.moveTo(x,y):g.lineTo(x,y);}
+    g.stroke(); g.globalAlpha=1;
+  } else {
+    // mirrored glowing bars
+    g.shadowColor=a; g.shadowBlur=play?12:4;
+    for(let i=0;i<BARS;i++){
+      const wob=play?(Math.sin(dt*4+i*0.6)*0.4+Math.sin(dt*2.3+i*0.22)*0.35+0.55):0.32;
+      const h=Math.max(3,(seed[i]*0.5+0.5*Math.abs(wob))*H*0.42);
+      const x=i*gap+gap*0.5, bw=Math.max(2,gap*0.52);
+      const past=(i/BARS)<prog;
+      g.fillStyle = past? grad : (cur.light?'rgba(16,40,40,.18)':'rgba(255,255,255,.14)');
+      if(!past) g.shadowBlur=0; else g.shadowBlur=play?12:4;
+      roundRect(x-bw/2,cy-h,bw,h*2,bw/2); g.fill();
+    }
+    // playhead
+    const px=prog*W; g.shadowBlur=0; g.fillStyle=a; g.globalAlpha=.9;
+    g.fillRect(px-1,6,2,H-12); g.beginPath(); g.arc(px,8,4,0,7); g.fill(); g.globalAlpha=1;
+  }
+  g.restore();
+  // chapter ticks
+  g.fillStyle=cur.light?'rgba(16,40,40,.3)':'rgba(255,255,255,.22)';
+  [0.18,0.52,0.77].forEach(p=>g.fillRect(p*W,0,1.5,H));
+  requestAnimationFrame(draw);
+}
+function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+requestAnimationFrame(draw);
+
+// live clock
+function tick(){const d=new Date();document.getElementById('clock').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+tick();setInterval(tick,10000);
+</script>
+
+</body></html>
+<!-- Injection By NetFree -->
+<script src="//netfree.link/injection-script/go-payment.js" type="text/javascript" async ></script>
+<script src="//netfree.link/injection-script/popup-card-init.js" type="text/javascript" async ></script>
