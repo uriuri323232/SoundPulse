@@ -7,16 +7,6 @@ import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Brush
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +19,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -67,58 +58,27 @@ import kotlin.math.abs
 
 typealias Setter = ((AppData) -> AppData) -> Unit
 
-private val Teal = Color(0xFF2DD4BF); private val Coral = Color(0xFFFF6B81); private val Periwinkle = Color(0xFF7C9CF5)
-private val LightC = lightColorScheme(primary = Color(0xFF0B8F86), onPrimary = Color.White, secondary = Color(0xFF4F6FD8), tertiary = Color(0xFFE0A030),
-    background = Color(0xFFF4F7F6), onBackground = Color(0xFF111A1B), surface = Color(0xFFF4F7F6), onSurface = Color(0xFF111A1B),
-    surfaceVariant = Color(0xFFE2EAE9), onSurfaceVariant = Color(0xFF4A5C5C), outline = Color(0xFF7D9090), outlineVariant = Color(0xFFD0DCDB),
-    surfaceContainer = Color(0xFFFFFFFF))
-private val DarkC = darkColorScheme(primary = Teal, onPrimary = Color(0xFF04221F), secondary = Periwinkle, tertiary = Color(0xFFF2C063),
-    background = Color(0xFF0E1416), onBackground = Color(0xFFEAF2F1), surface = Color(0xFF0E1416), onSurface = Color(0xFFEAF2F1),
-    surfaceVariant = Color(0xFF1E282B), onSurfaceVariant = Color(0xFF8AA0A0), outline = Color(0xFF5E7373), outlineVariant = Color(0xFF2A3638),
-    surfaceContainer = Color(0xFF172024))
-
-/** Soft glowing aurora blobs behind the whole app. */
-@Composable fun Aurora(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val a1 = MaterialTheme.colorScheme.primary; val a2 = MaterialTheme.colorScheme.secondary
-    val dark = isSystemInDarkTheme()
-    val t = rememberInfiniteTransition(label = "aurora")
-    val drift by t.animateFloat(0f, 1f, infiniteRepeatable(tween(9000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "drift")
-    Box(modifier.background(MaterialTheme.colorScheme.background).drawBehind {
-        val k = if (dark) 0.28f else 0.16f
-        drawRect(Brush.radialGradient(listOf(a1.copy(alpha = k), Color.Transparent), center = Offset(size.width * (0.15f + 0.2f * drift), size.height * 0.08f), radius = size.width * 0.9f))
-        drawRect(Brush.radialGradient(listOf(a2.copy(alpha = k * 0.9f), Color.Transparent), center = Offset(size.width * (0.95f - 0.2f * drift), size.height * 0.32f), radius = size.width * 0.8f))
-    }) { content() }
-}
-
-/** Pulsing orb shown on the player; it breathes while audio is playing. */
-@Composable fun PulseOrb(playing: Boolean, size: androidx.compose.ui.unit.Dp = 150.dp) {
-    val t = rememberInfiniteTransition(label = "orb")
-    val s1 by t.animateFloat(0.92f, 1.08f, infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "s1")
-    val s2 by t.animateFloat(1.0f, 1.22f, infiniteRepeatable(tween(2100, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "s2")
-    val c1 = MaterialTheme.colorScheme.primary; val c2 = MaterialTheme.colorScheme.secondary
-    Box(Modifier.size(size * 1.4f), Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val r = this.size.minDimension / 2f
-            val k1 = if (playing) s1 else 1f; val k2 = if (playing) s2 else 1.05f
-            drawCircle(Brush.radialGradient(listOf(c1.copy(alpha = .35f), Color.Transparent), radius = r), radius = r * 0.95f * k2 / 1.22f * 1.0f)
-            drawCircle(Brush.linearGradient(listOf(c1, c2)), radius = r * 0.56f * k1)
-            drawCircle(Color.White.copy(alpha = .18f), radius = r * 0.56f * k1 * 0.72f)
-        }
-        Icon(Icons.Rounded.GraphicEq, null, Modifier.size(size * 0.36f), tint = Color.White)
-    }
-}
+private val Teal = Color(0xFF0E9594); private val Coral = Color(0xFFE5566D)
+private val LightC = lightColorScheme(primary = Color(0xFF0B7F7E), secondary = Color(0xFF3D5A80), tertiary = Color(0xFFE0A030),
+    background = Color(0xFFF8F6F2), surface = Color(0xFFF8F6F2), surfaceVariant = Color(0xFFE8ECEB), surfaceContainer = Color(0xFFFFFFFF))
+private val DarkC = darkColorScheme(primary = Color(0xFF4FD1CF), secondary = Color(0xFF9DB7E0), tertiary = Color(0xFFF2C063),
+    background = Color(0xFF121517), surface = Color(0xFF121517), surfaceVariant = Color(0xFF232A2C), surfaceContainer = Color(0xFF1B2124))
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 33 && savedInstanceState == null)
             runCatching { registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(Manifest.permission.POST_NOTIFICATIONS) }
         val store = Store(this)
         setContent {
+            val initial = remember { store.load() }
+            var themeKey by remember { mutableStateOf(initial.palette to initial.skin) }
+            val scheme = remember(themeKey) { schemeFor(paletteOf(themeKey.first), skinOf(themeKey.second)) }
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                MaterialTheme(colorScheme = if (isSystemInDarkTheme()) DarkC else LightC) {
-                    Aurora(Modifier.fillMaxSize()) { App(store) }
+                MaterialTheme(colorScheme = scheme) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        App(store) { pal, sk -> themeKey = pal to sk }
+                    }
                 }
             }
         }
@@ -126,6 +86,16 @@ class MainActivity : ComponentActivity() {
 }
 
 fun fmt(ms: Long): String { val s = (ms.coerceAtLeast(0) / 1000); return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, (s / 60) % 60, s % 60) else "%d:%02d".format(s / 60, s % 60) }
+
+fun crashFile(ctx: android.content.Context) = java.io.File(ctx.filesDir, "last_crash.txt")
+fun readCrash(ctx: android.content.Context): String? = runCatching { crashFile(ctx).let { if (it.exists() && it.length() > 0) it.readText() else null } }.getOrNull()
+fun clearCrash(ctx: android.content.Context) { runCatching { crashFile(ctx).delete() } }
+fun copyText(ctx: android.content.Context, text: String) {
+    runCatching {
+        val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("SoundPulse crash", text))
+    }
+}
 
 fun shareText(ctx: android.content.Context, text: String) {
     runCatching {
@@ -139,17 +109,20 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
         nameOf(e.key) + "\n" + e.value.sortedBy { it.ms }.joinToString("\n") { (if (it.flag) "🚩 " else "🔖 ") + fmt(it.ms) + "  " + it.text }
     }
 
-@Composable fun App(store: Store) {
+@Composable fun App(store: Store, onTheme: (String, String) -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var d by remember { mutableStateOf(store.load()) }
     val set: Setter = { f -> d = f(d); val snap = d; scope.launch(Dispatchers.IO) { store.save(snap) } }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var all by remember { mutableStateOf(listOf<Clip>()) }
+    var subfolders by remember { mutableStateOf(listOf<Folder>()) }
+    var path by remember { mutableStateOf(listOf<androidx.documentfile.provider.DocumentFile>()) }
     var cur by remember { mutableStateOf<Clip?>(null) }
     var env by remember { mutableStateOf<FloatArray?>(null) }
     var gesture by rememberSaveable { mutableStateOf(false) }
     var err by remember { mutableStateOf<String?>(null) }
+    var crashLog by remember { mutableStateOf(readCrash(ctx)) }
     var sleepAt by remember { mutableLongStateOf(0L) }
     val sp = remember { Speaker(ctx) }
     val p = remember { Audio.player(ctx) }
@@ -158,7 +131,13 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     val dS by rememberUpdatedState(d)
     val allS by rememberUpdatedState(all)
     val curS by rememberUpdatedState(cur)
-    fun refresh() { d.folder?.let { f -> scope.launch { all = withContext(Dispatchers.IO) { clips(ctx, Uri.parse(f)) } } } }
+    fun browseCurrent() {
+        val dir = path.lastOrNull() ?: return
+        scope.launch { val r = withContext(Dispatchers.IO) { browse(ctx, dir) }; subfolders = r.first; all = r.second }
+    }
+    fun refresh() { browseCurrent() }
+    val enterFolder: (Folder) -> Unit = { f -> path = path + f.doc }
+    val goBack: () -> Unit = { if (path.size > 1) path = path.dropLast(1) }
     val playClip: (Clip, Long) -> Unit = { c, start ->
         curS?.let { old -> runCatching { val k = old.uri.toString(); val ps = p.currentPosition; set { x -> x.copy(pos = x.pos + (k to ps)) } } }
         val st = if (start >= 0) start else maxOf(0L, (dS.pos[c.uri.toString()] ?: 0L) - 3000L)
@@ -167,7 +146,11 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
         runCatching { p.setPlaybackSpeed(dS.speed); p.skipSilenceEnabled = dS.skip }
     }
     val playRef by rememberUpdatedState(playClip)
-    LaunchedEffect(d.folder) { refresh() }
+    LaunchedEffect(d.folder) {
+        val root = d.folder?.let { withContext(Dispatchers.IO) { rootDoc(ctx, Uri.parse(it)) } }
+        path = if (root != null) listOf(root) else emptyList()
+    }
+    LaunchedEffect(path) { if (path.isNotEmpty()) browseCurrent() else { all = emptyList(); subfolders = emptyList() } }
     LaunchedEffect(cur) {
         env = null
         cur?.let { c -> env = runCatching { analyze(ctx, c.uri, c.uri.toString() + c.size + c.mod) }.getOrNull() }
@@ -211,6 +194,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
         p.addListener(l); onDispose { p.removeListener(l); sp.shutdown() }
     }
     LaunchedEffect(d.fx) { Audio.fx?.on(d.fx) }
+    LaunchedEffect(d.skin, d.palette) { onTheme(d.palette, d.skin) }
     val deleteMark: (Mark) -> Unit = { m ->
         set { x -> x.copy(marks = x.marks - m) }
         scope.launch {
@@ -219,26 +203,56 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
         }
     }
     if (gesture && cur != null) { GestureMode(d, set, cur!!, cuts, sp) { gesture = false }; return }
-    val tabs = listOf("ספרייה" to Icons.Rounded.LibraryMusic, "נגן" to Icons.Rounded.GraphicEq, "סימונים" to Icons.Rounded.Bookmarks, "אחסון" to Icons.Rounded.CleaningServices)
-    Scaffold(containerColor = Color.Transparent, snackbarHost = { SnackbarHost(snack) },
+    val tabs = listOf("ספרייה" to Icons.Rounded.LibraryMusic, "נגן" to Icons.Rounded.GraphicEq, "סימונים" to Icons.Rounded.Bookmarks, "אחסון" to Icons.Rounded.CleaningServices, "הגדרות" to Icons.Rounded.Settings)
+    val skin = skinOf(d.skin)
+    Scaffold(containerColor = MaterialTheme.colorScheme.background, snackbarHost = { SnackbarHost(snack) },
         bottomBar = { Column {
             val c = cur
             if (c != null && tab != 1) MiniPlayer(c) { tab = 1 }
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f)) {
-                tabs.forEachIndexed { i, (l, ic) -> NavigationBarItem(tab == i, { tab = i }, { Icon(ic, null) }, label = { Text(l) }) }
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                tabs.forEachIndexed { i, (l, ic) -> NavigationBarItem(tab == i, { tab = i }, { Icon(ic, null) }, label = { Text(l, maxLines = 1) }) }
             }
         } }) { pad ->
-        Box(Modifier.padding(pad).statusBarsPadding().fillMaxSize()) {
+        Box(Modifier.padding(pad).fillMaxSize()) {
             when (tab) {
-                0 -> Library(d, set, all, cur) { c -> playClip(c, -1L); tab = 1 }
-                1 -> PlayerTab(d, set, cur, env, cuts, sleepAt, { sleepAt = it }, deleteMark) { gesture = true }
+                0 -> Library(d, set, all, subfolders, (path.size <= 1), path.lastOrNull()?.name, enterFolder, goBack, cur) { c -> playClip(c, -1L); tab = 1 }
+                1 -> when (skin) {
+                    Skin.SPOTIFY -> PlayerSpotify(d, set, cur, env, cuts, sleepAt, { sleepAt = it }, deleteMark) { gesture = true }
+                    Skin.YTM -> PlayerYtm(d, set, cur, env, cuts, sleepAt, { sleepAt = it }, deleteMark) { gesture = true }
+                    else -> PlayerTab(d, set, cur, env, cuts, sleepAt, { sleepAt = it }, deleteMark) { gesture = true }
+                }
                 2 -> MarksTab(d, all, deleteMark) { uri, ms ->
                     val c = all.find { it.uri.toString() == uri }
                     if (c == null) err = "ההקלטה לא נמצאת בתיקייה הנוכחית" else { playClip(c, ms); tab = 1 }
                 }
-                else -> StorageTab(d, all, ::refresh)
+                3 -> StorageTab(d, all, ::refresh)
+                else -> SettingsScreen(d, set)
             }
         }
+    }
+    crashLog?.let { log ->
+        AlertDialog(
+            onDismissRequest = {},
+            icon = { Icon(Icons.Rounded.BugReport, null) },
+            title = { Text("האפליקציה נסגרה בפעם הקודמת") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("נשמר דוח על מה שקרה. אפשר להעתיק או לשתף אותו כדי שנתקן. שום דבר לא נשלח אוטומטית.",
+                        style = MaterialTheme.typography.bodyMedium)
+                    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(10.dp)) {
+                        Text(log.take(900), Modifier.padding(10.dp).heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
+                            style = MaterialTheme.typography.bodySmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                    }
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton({ copyText(ctx, log); err = "הדוח הועתק" }) { Icon(Icons.Rounded.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("העתק") }
+                    TextButton({ shareText(ctx, "SoundPulse crash:\n\n" + log) }) { Icon(Icons.Rounded.Share, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("שתף") }
+                }
+            },
+            dismissButton = { TextButton({ clearCrash(ctx); crashLog = null }) { Text("סגור ומחק") } }
+        )
     }
 }
 
@@ -302,7 +316,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
         Spacer(Modifier.height(12.dp)); Text(text, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 
-@Composable fun Library(d: AppData, set: Setter, all: List<Clip>, cur: Clip?, onPlay: (Clip) -> Unit) {
+@Composable fun Library(d: AppData, set: Setter, files: List<Clip>, folders: List<Folder>, atRoot: Boolean, folderName: String?, onEnter: (Folder) -> Unit, onBack: () -> Unit, cur: Clip?, onPlay: (Clip) -> Unit) {
     val ctx = LocalContext.current
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { u ->
         if (u != null) runCatching {
@@ -313,37 +327,58 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     var q by rememberSaveable { mutableStateOf("") }
     var onlyNew by rememberSaveable { mutableStateOf(false) }
     var newest by rememberSaveable { mutableStateOf(false) }
-    val base = all.filter { it.audio }
+    val base = files.filter { it.audio }
     val list = base.filter { q.isBlank() || it.name.contains(q, ignoreCase = true) }
         .filter { !onlyNew || it.uri.toString() !in d.played }
         .let { if (newest) it.sortedByDescending { c -> c.mod } else it }
+    val shownFolders = folders.filter { q.isBlank() || it.name.contains(q, ignoreCase = true) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("הספרייה שלי", style = MaterialTheme.typography.headlineMedium.copy(brush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary))), fontWeight = FontWeight.ExtraBold)
+        Text("הספרייה שלי", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         FilledTonalButton({ pick.launch(null) }, Modifier.fillMaxWidth().height(48.dp)) {
             Icon(Icons.Rounded.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text(if (d.folder == null) "בחר תיקיית הקלטות" else "החלף תיקייה")
         }
-        if (base.isNotEmpty()) {
-            OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth(), placeholder = { Text("חיפוש הקלטה") }, singleLine = true,
+        if (d.folder != null) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                if (!atRoot) {
+                    FilledTonalIconButton({ onBack() }, Modifier.size(38.dp)) { Icon(Icons.Rounded.ArrowForward, "חזרה") }
+                    Spacer(Modifier.width(8.dp))
+                } else { Icon(Icons.Rounded.Home, null, tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)) }
+                Text(if (atRoot) "בית" else (folderName ?: "תיקייה"), Modifier.weight(1f), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth(), placeholder = { Text("חיפוש הקלטה או תיקייה") }, singleLine = true,
                 leadingIcon = { Icon(Icons.Rounded.Search, null) }, shape = RoundedCornerShape(14.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = onlyNew, onClick = { onlyNew = !onlyNew }, label = { Text("שלא הושמעו") })
                 FilterChip(selected = newest, onClick = { newest = !newest }, label = { Text("החדשות קודם") })
-                Text("${list.size} הקלטות", Modifier.align(Alignment.CenterVertically).padding(horizontal = 8.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${shownFolders.size} תיקיות · ${list.size} הקלטות", Modifier.align(Alignment.CenterVertically).padding(horizontal = 8.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        if (list.isEmpty()) Empty(Icons.Rounded.LibraryMusic, if (d.folder == null) "בחר תיקייה כדי להתחיל" else if (base.isEmpty()) "לא נמצאו הקלטות בתיקייה" else "אין הקלטות שמתאימות לחיפוש")
+        if (d.folder == null) Empty(Icons.Rounded.LibraryMusic, "בחר תיקייה כדי להתחיל")
+        else if (list.isEmpty() && shownFolders.isEmpty()) Empty(Icons.Rounded.LibraryMusic, if (q.isBlank()) "התיקייה ריקה" else "אין תוצאות לחיפוש")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
-            items(list, key = { it.uri.toString() }) { c ->
+            items(shownFolders, key = { "f:" + it.name }) { f ->
+                Card(Modifier.fillMaxWidth().clickable { onEnter(f) }, shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondary.copy(alpha = .18f)), Alignment.Center) {
+                            Icon(Icons.Rounded.Folder, null, tint = MaterialTheme.colorScheme.secondary)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(f.name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                        Icon(Icons.Rounded.ChevronLeft, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            items(list, key = { "c:" + it.uri.toString() }) { c ->
                 val k = c.uri.toString()
                 val done = k in d.played; val active = c.uri == cur?.uri
                 val nm = d.marks.count { it.uri == k }
                 val resume = d.pos[k] ?: 0L
-                Card(Modifier.fillMaxWidth().clickable { onPlay(c) }, shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, if (active) MaterialTheme.colorScheme.primary.copy(alpha = .6f) else MaterialTheme.colorScheme.outlineVariant),
+                Card(Modifier.fillMaxWidth().clickable { onPlay(c) }, shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = if (active) MaterialTheme.colorScheme.primary.copy(alpha = .14f) else MaterialTheme.colorScheme.surfaceContainer)) {
                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(46.dp).clip(CircleShape).background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary))), Alignment.Center) {
-                            Icon(if (done) Icons.Rounded.CheckCircle else if (active) Icons.Rounded.GraphicEq else Icons.Rounded.PlayArrow, null, tint = Color.White)
+                        Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = .15f)), Alignment.Center) {
+                            Icon(if (done) Icons.Rounded.CheckCircle else Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.primary)
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
@@ -358,11 +393,11 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     }
 }
 
-@Composable fun Wave(env: FloatArray?, pos: Long, dur: Long, cuts: List<Long>, marks: List<Mark>, onSeek: (Long) -> Unit) {
+@Composable fun Wave(env: FloatArray?, pos: Long, dur: Long, cuts: List<Long>, marks: List<Mark>, modifier: Modifier = Modifier.fillMaxWidth().height(110.dp), onSeek: (Long) -> Unit) {
     val on = MaterialTheme.colorScheme.primary; val off = MaterialTheme.colorScheme.outlineVariant
     val cutC = MaterialTheme.colorScheme.tertiary
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Canvas(Modifier.fillMaxWidth().height(110.dp)
+        Canvas(modifier
             .pointerInput(dur) { detectTapGestures { o -> onSeek((o.x / size.width * dur).toLong().coerceIn(0, dur)) } }
             .pointerInput(dur) { detectHorizontalDragGestures { ch, _ -> onSeek((ch.position.x / size.width * dur).toLong().coerceIn(0, dur)) } }) {
             val n = (size.width / 5).toInt().coerceAtLeast(1); val cy = size.height / 2
@@ -385,6 +420,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable fun PlayerTab(d: AppData, set: Setter, cur: Clip?, env: FloatArray?, cuts: List<Long>, sleepAt: Long, onSleep: (Long) -> Unit, onDelete: (Mark) -> Unit, onGesture: () -> Unit) {
     val ctx = LocalContext.current
     val p = remember { Audio.player(ctx) }
@@ -394,6 +430,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var note by rememberSaveable { mutableStateOf("") }
     var editing by remember { mutableStateOf<Mark?>(null) }
+    var sheet by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
     LaunchedEffect(Unit) { while (true) { runCatching { pos = p.currentPosition; dur = p.duration.let { if (it > 0) it else 1L }; playing = p.isPlaying }; now = System.currentTimeMillis(); delay(250) } }
     if (cur == null) { Empty(Icons.Rounded.GraphicEq, "בחר הקלטה מהספרייה"); return }
@@ -401,78 +438,61 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     val marks = d.marks.filter { it.uri == key }.sortedBy { it.ms }
     val speeds = listOf(0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f)
     fun seek(ms: Long) = runCatching { p.seekTo(ms.coerceIn(0, dur)) }
+    fun prevChapter() { seek(cuts.lastOrNull { it < pos - 1200 } ?: 0L) }
+    fun nextChapter() { val t = cuts.firstOrNull { it > pos + 500 }; if (t != null) seek(t) else seek(dur) }
     val sleepLeft = if (sleepAt > now) (sleepAt - now) / 60000 + 1 else 0L
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
-        item {
-            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                PulseOrb(playing)
-                Text(cur.name.substringBeforeLast('.'), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-            }
-        }
-        item {
-            Card(shape = RoundedCornerShape(24.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                Column(Modifier.padding(14.dp)) {
-                    Wave(env, pos, dur, cuts, marks) { seek(it) }
-                    Row(Modifier.fillMaxWidth().padding(top = 6.dp), Arrangement.SpaceBetween) {
-                        Text(fmt(pos), style = MaterialTheme.typography.labelLarge)
-                        if (env == null) Text("מנתח את ההקלטה...", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(fmt(dur), style = MaterialTheme.typography.labelLarge)
-                    }
+
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(cur.name.substringBeforeLast('.'), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Card(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(14.dp).fillMaxSize()) {
+                Wave(env, pos, dur, cuts, marks, modifier = Modifier.fillMaxWidth().weight(1f).heightIn(min = 60.dp)) { seek(it) }
+                Row(Modifier.fillMaxWidth().padding(top = 6.dp), Arrangement.SpaceBetween) {
+                    Text(fmt(pos), style = MaterialTheme.typography.labelLarge)
+                    if (env == null) Text("מנתח...", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(fmt(dur), style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
-        item {
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Alignment.CenterVertically) {
-                IconButton({ seek(pos - 30_000) }, Modifier.size(56.dp)) { Icon(Icons.Rounded.Replay30, "אחורה 30 שניות", Modifier.size(34.dp)) }
-                FilledIconButton({ runCatching { if (p.isPlaying) p.pause() else p.play() } }, Modifier.size(80.dp)) {
-                    Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "נגן או השהה", Modifier.size(42.dp))
-                }
-                IconButton({ seek(pos + 30_000) }, Modifier.size(56.dp)) { Icon(Icons.Rounded.Forward30, "קדימה 30 שניות", Modifier.size(34.dp)) }
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Alignment.CenterVertically) {
+            IconButton({ prevChapter() }, Modifier.size(46.dp)) { Icon(Icons.Rounded.SkipPrevious, "פרק קודם", Modifier.size(28.dp)) }
+            IconButton({ seek(pos - 30_000) }, Modifier.size(52.dp)) { Icon(Icons.Rounded.Replay30, "אחורה 30 שניות", Modifier.size(32.dp)) }
+            FilledIconButton({ runCatching { if (p.isPlaying) p.pause() else p.play() } }, Modifier.size(70.dp)) {
+                Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "נגן או השהה", Modifier.size(40.dp))
             }
+            IconButton({ seek(pos + 30_000) }, Modifier.size(52.dp)) { Icon(Icons.Rounded.Forward30, "קדימה 30 שניות", Modifier.size(32.dp)) }
+            IconButton({ nextChapter() }, Modifier.size(46.dp)) { Icon(Icons.Rounded.SkipNext, "פרק הבא", Modifier.size(28.dp)) }
         }
-        item {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
-                AssistChip(onClick = {
-                    val i = speeds.indexOf(d.speed); val nv = speeds[(if (i < 0) 1 else i + 1) % speeds.size]
-                    set { it.copy(speed = nv) }; runCatching { p.setPlaybackSpeed(nv) }
-                }, label = { Text("${d.speed}x") }, leadingIcon = { Icon(Icons.Rounded.Speed, null, Modifier.size(18.dp)) })
-                AssistChip(onClick = {
-                    if (sleepLeft <= 0L) onSleep(System.currentTimeMillis() + 15 * 60000L)
-                    else if (sleepLeft <= 15) onSleep(System.currentTimeMillis() + 30 * 60000L)
-                    else if (sleepLeft <= 30) onSleep(System.currentTimeMillis() + 60 * 60000L)
-                    else onSleep(0L)
-                }, label = { Text(if (sleepLeft > 0) "נכבה בעוד $sleepLeft דק'" else "טיימר שינה") }, leadingIcon = { Icon(Icons.Rounded.Timer, null, Modifier.size(18.dp)) })
-                FilterChip(selected = d.fx, onClick = { val nv = !d.fx; set { it.copy(fx = nv) }; Audio.fx?.on(nv) }, label = { Text("מעבד דיבור") })
-                FilterChip(selected = d.skip, onClick = { val nv = !d.skip; set { it.copy(skip = nv) }; runCatching { p.skipSilenceEnabled = nv } }, label = { Text("דלג שקטים") })
-                FilterChip(selected = d.autoNext, onClick = { val nv = !d.autoNext; set { it.copy(autoNext = nv) } }, label = { Text("המשך אוטומטי") })
-            }
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            AssistChip(onClick = {
+                val i = speeds.indexOf(d.speed); val nv = speeds[(if (i < 0) 1 else i + 1) % speeds.size]
+                set { it.copy(speed = nv) }; runCatching { p.setPlaybackSpeed(nv) }
+            }, label = { Text("${d.speed}x") }, leadingIcon = { Icon(Icons.Rounded.Speed, null, Modifier.size(18.dp)) })
+            AssistChip(onClick = {
+                if (sleepLeft <= 0L) onSleep(System.currentTimeMillis() + 15 * 60000L)
+                else if (sleepLeft <= 15) onSleep(System.currentTimeMillis() + 30 * 60000L)
+                else if (sleepLeft <= 30) onSleep(System.currentTimeMillis() + 60 * 60000L)
+                else onSleep(0L)
+            }, label = { Text(if (sleepLeft > 0) "שינה $sleepLeft׳" else "טיימר שינה") }, leadingIcon = { Icon(Icons.Rounded.Timer, null, Modifier.size(18.dp)) })
+            FilterChip(selected = d.fx, onClick = { val nv = !d.fx; set { it.copy(fx = nv) }; Audio.fx?.on(nv) }, label = { Text("מעבד דיבור") })
+            FilterChip(selected = d.skip, onClick = { val nv = !d.skip; set { it.copy(skip = nv) }; runCatching { p.skipSilenceEnabled = nv } }, label = { Text("דלג שקטים") })
+            FilterChip(selected = d.autoNext, onClick = { val nv = !d.autoNext; set { it.copy(autoNext = nv) } }, label = { Text("המשך אוטומטי") })
         }
-        item {
-            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth(), label = { Text("הערה לנקודה הזו") }, singleLine = true, shape = RoundedCornerShape(14.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button({ haptic.performHapticFeedback(HapticFeedbackType.LongPress); set { x -> x.copy(marks = x.marks + Mark(key, pos, note.ifBlank { "סימנייה" })) }; note = "" },
-                            Modifier.weight(1f).height(48.dp)) { Icon(Icons.Rounded.Bookmark, null); Spacer(Modifier.width(6.dp)); Text("סימנייה") }
-                        Button({ haptic.performHapticFeedback(HapticFeedbackType.LongPress); set { x -> x.copy(marks = x.marks + Mark(key, pos, note.ifBlank { "דגל" }, true)) }; note = "" },
-                            Modifier.weight(1f).height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Coral)) { Icon(Icons.Rounded.Flag, null); Spacer(Modifier.width(6.dp)); Text("דגל") }
-                    }
-                }
-            }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(note, { note = it }, Modifier.weight(1f), placeholder = { Text("הערה לנקודה") }, singleLine = true, shape = RoundedCornerShape(14.dp))
+            FilledIconButton({ haptic.performHapticFeedback(HapticFeedbackType.LongPress); set { x -> x.copy(marks = x.marks + Mark(key, pos, note.ifBlank { "סימנייה" })) }; note = "" }, Modifier.size(52.dp)) { Icon(Icons.Rounded.Bookmark, "הוסף סימנייה") }
+            FilledIconButton({ haptic.performHapticFeedback(HapticFeedbackType.LongPress); set { x -> x.copy(marks = x.marks + Mark(key, pos, note.ifBlank { "דגל" }, true)) }; note = "" }, Modifier.size(52.dp), colors = IconButtonDefaults.filledIconButtonColors(containerColor = Coral, contentColor = androidx.compose.ui.graphics.Color.White)) { Icon(Icons.Rounded.Flag, "הוסף דגל") }
         }
-        item { FilledTonalButton(onGesture, Modifier.fillMaxWidth().height(52.dp)) { Icon(Icons.Rounded.DirectionsWalk, null); Spacer(Modifier.width(8.dp)); Text("מצב הליכה (מחוות)") } }
-        if (cuts.isNotEmpty()) item { Text("פרקים", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
-        items(cuts.size) { i -> Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { seek(cuts[i]) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.Segment, null, tint = MaterialTheme.colorScheme.tertiary); Spacer(Modifier.width(12.dp)); Text("פרק ${i + 2}", Modifier.weight(1f)); Text(fmt(cuts[i]), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
-        if (marks.isNotEmpty()) item { Text("סימנים והערות", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
-        items(marks.size) { i -> val m = marks[i]
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { seek(m.ms) }.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (m.flag) Icons.Rounded.Flag else Icons.Rounded.Bookmark, null, tint = if (m.flag) Coral else MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(12.dp)); Text(m.text, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(fmt(m.ms), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                IconButton({ editing = m }) { Icon(Icons.Rounded.Edit, "ערוך", Modifier.size(18.dp)) }
-                IconButton({ onDelete(m) }) { Icon(Icons.Rounded.Close, "מחק", Modifier.size(18.dp)) }
-            } }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(onGesture, Modifier.weight(1f).height(48.dp)) { Icon(Icons.Rounded.DirectionsWalk, null); Spacer(Modifier.width(6.dp)); Text("מצב הליכה") }
+            FilledTonalButton({ sheet = true }, Modifier.weight(1f).height(48.dp)) { Icon(Icons.Rounded.FormatListBulleted, null); Spacer(Modifier.width(6.dp)); Text("עוד") }
+        }
+    }
+    if (sheet) ModalBottomSheet(onDismissRequest = { sheet = false }) {
+        ExtrasSheet(cur, key in d.played, cuts, marks, { seek(it); sheet = false }, { editing = it }, onDelete,
+            onRestart = { seek(0L); sheet = false },
+            onTogglePlayed = { set { x -> x.copy(played = if (key in x.played) x.played - key else x.played + key) } },
+            onShare = { shareText(ctx, cur.name.substringBeforeLast('.') + " — " + fmt(pos)) })
     }
     editing?.let { m ->
         var t by remember(m) { mutableStateOf(m.text) }
@@ -480,6 +500,32 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
             text = { OutlinedTextField(t, { t = it }, singleLine = true) },
             confirmButton = { TextButton({ val nt = t.ifBlank { m.text }; set { x -> x.copy(marks = x.marks.map { e -> if (e == m) e.copy(text = nt) else e }) }; editing = null }) { Text("שמור") } },
             dismissButton = { TextButton({ editing = null }) { Text("ביטול") } })
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable fun ExtrasSheet(cur: Clip, isPlayed: Boolean, cuts: List<Long>, marks: List<Mark>, onSeek: (Long) -> Unit, onEdit: (Mark) -> Unit, onDelete: (Mark) -> Unit, onRestart: () -> Unit, onTogglePlayed: () -> Unit, onShare: () -> Unit) {
+    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp).padding(horizontal = 16.dp), contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        item {
+            FlowRow(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(onClick = onRestart, label = { Text("מהתחלה") }, leadingIcon = { Icon(Icons.Rounded.RestartAlt, null, Modifier.size(18.dp)) })
+                FilterChip(selected = isPlayed, onClick = onTogglePlayed, label = { Text(if (isPlayed) "סומן כהושמע" else "סמן כהושמע") }, leadingIcon = { Icon(Icons.Rounded.CheckCircle, null, Modifier.size(18.dp)) })
+                AssistChip(onClick = onShare, label = { Text("שתף מיקום") }, leadingIcon = { Icon(Icons.Rounded.Share, null, Modifier.size(18.dp)) })
+            }
+        }
+        if (cuts.isEmpty() && marks.isEmpty()) item { Text("עדיין אין פרקים או סימונים בהקלטה הזו", Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (cuts.isNotEmpty()) item { Text("פרקים", Modifier.padding(vertical = 6.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+        items(cuts.size) { i -> Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onSeek(cuts[i]) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.Segment, null, tint = MaterialTheme.colorScheme.tertiary); Spacer(Modifier.width(12.dp)); Text("פרק ${i + 2}", Modifier.weight(1f)); Text(fmt(cuts[i]), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+        if (marks.isNotEmpty()) item { Text("סימונים והערות", Modifier.padding(vertical = 6.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+        items(marks.size) { i -> val m = marks[i]
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onSeek(m.ms) }.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (m.flag) Icons.Rounded.Flag else Icons.Rounded.Bookmark, null, tint = if (m.flag) Coral else MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(12.dp)); Text(m.text, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(fmt(m.ms), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                IconButton({ onEdit(m) }) { Icon(Icons.Rounded.Edit, "ערוך", Modifier.size(18.dp)) }
+                IconButton({ onDelete(m) }) { Icon(Icons.Rounded.Close, "מחק", Modifier.size(18.dp)) }
+            } }
     }
 }
 
@@ -501,7 +547,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     LaunchedEffect(flash) { if (flash) { delay(250); flash = false } }
     fun show(t: String, i: androidx.compose.ui.graphics.vector.ImageVector) { label = t; icon = i; flash = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress); if (dNow.speak) sp.say(t) }
     val key = cur.uri.toString()
-    Box(Modifier.fillMaxSize().background(bg).statusBarsPadding()
+    Box(Modifier.fillMaxSize().background(bg)
         .pointerInput(Unit) {
             detectTapGestures(
                 onTap = { runCatching { if (p.isPlaying) { p.pause(); show("מושהה", Icons.Rounded.Pause) } else { p.play(); show("מנגן", Icons.Rounded.PlayArrow) } } },
@@ -525,7 +571,6 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
                         if (fwd) show("+30 שניות", Icons.Rounded.Forward30) else show("-30 שניות", Icons.Rounded.Replay30)
                     } else if (dy < -80) { val pos = p.currentPosition; set { x -> x.copy(marks = x.marks + Mark(key, pos, "סימנייה")) }; show("סימנייה נוספה", Icons.Rounded.Bookmark) }
                     else if (dy > 80) { val n = cuts.firstOrNull { it > p.currentPosition }; if (n != null) { p.seekTo(n); show("פרק הבא", Icons.Rounded.SkipNext) } else show("אין פרק הבא", Icons.Rounded.SkipNext) }
-                    else Unit
                 }
             })
         }, contentAlignment = Alignment.Center) {
@@ -562,27 +607,56 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
         compress(ctx, tree, list[0]) { run(list.drop(1)) }
     }
     if (tree == null) { Empty(Icons.Rounded.CleaningServices, "בחר תיקייה בלשונית הספרייה"); return }
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val playedMb = played.sumOf { it.size } / 1e6
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("ניהול אחסון", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Button({ busy = true; msg = "סורק..."; scope.launch { res = withContext(Dispatchers.IO) { runCatching { scan(ctx, all) }.getOrNull() }; busy = false; msg = if (res == null) "הסריקה נכשלה" else "" } },
-            Modifier.fillMaxWidth().height(52.dp), enabled = !busy) { Icon(Icons.Rounded.Search, null); Spacer(Modifier.width(8.dp)); Text("סרוק כפולים, ישנים וזבל") }
+
+        // Compress played recordings — the main space saver, made clear and prominent.
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(46.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = .22f)), Alignment.Center) {
+                        Icon(Icons.Rounded.Compress, null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("דחיסת הקלטות שהושמעו", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("ממיר ל-AAC וחוסך מקום. הקלטות שלא הושמעו לא נוגעים בהן.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (played.isNotEmpty())
+                    Text("${played.size} הקלטות שהושמעו במלואן · ${"%.1f".format(playedMb)} MB זמינות לדחיסה", style = MaterialTheme.typography.bodyMedium)
+                else
+                    Text("אין כרגע הקלטות שהושמעו במלואן. השמע הקלטה עד הסוף והיא תופיע כאן.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button({ run(played) }, Modifier.fillMaxWidth().height(50.dp), enabled = !busy && played.isNotEmpty()) {
+                    Icon(Icons.Rounded.Compress, null); Spacer(Modifier.width(8.dp)); Text(if (busy) "מכווץ..." else "כווץ עכשיו וחסוך מקום")
+                }
+                if (busy) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    if (msg.isNotEmpty()) Text(msg, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else if (msg.isNotEmpty()) Text(msg, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        HorizontalDivider()
+        Text("ניקוי קבצים", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("סורק את התיקייה ומאתר מה אפשר למחוק כדי לפנות מקום.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        FilledTonalButton({ busy = true; msg = "סורק..."; scope.launch { res = withContext(Dispatchers.IO) { runCatching { scan(ctx, all) }.getOrNull() }; busy = false; msg = if (res == null) "הסריקה נכשלה" else "" } },
+            Modifier.fillMaxWidth().height(50.dp), enabled = !busy) { Icon(Icons.Rounded.Search, null); Spacer(Modifier.width(8.dp)); Text("סרוק כפולים, ישנים וזבל") }
         res?.let { r ->
-            listOf("קבצים כפולים" to r.dups, "הקלטות ישנות (מעל 90 יום)" to r.old, "קבצי זבל זמניים" to r.junk).forEach { (t, l) ->
+            listOf(Triple("קבצים כפולים", Icons.Rounded.ContentCopy, r.dups), Triple("הקלטות ישנות (מעל 90 יום)", Icons.Rounded.History, r.old), Triple("קבצי זבל זמניים", Icons.Rounded.DeleteSweep, r.junk)).forEach { (t, ic, l) ->
                 Card(Modifier.fillMaxWidth().clickable(enabled = l.isNotEmpty()) { ask = t to l }, shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(t, Modifier.weight(1f)); Text("${l.size} • ${"%.1f".format(l.sumOf { it.size } / 1e6)} MB", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(ic, null, tint = if (l.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                        Spacer(Modifier.width(12.dp))
+                        Text(t, Modifier.weight(1f))
+                        Text("${l.size} · ${"%.1f".format(l.sumOf { it.size } / 1e6)} MB", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         }
-        HorizontalDivider()
-        Text("קבצים שהושמעו במלואם: ${played.size}")
-        FilledTonalButton({ run(played) }, Modifier.fillMaxWidth().height(52.dp), enabled = !busy && played.isNotEmpty()) {
-            Text("כווץ קבצים שהושמעו (${"%.1f".format(played.sumOf { it.size } / 1e6)} MB)")
-        }
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (msg.isNotEmpty()) Text(msg, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     ask?.let { (t, l) ->
         AlertDialog(onDismissRequest = { ask = null }, title = { Text("למחוק $t?") },

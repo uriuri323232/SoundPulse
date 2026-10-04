@@ -1,7 +1,1 @@
-<resources>
-    <style name="Theme.SoundPulse" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowBackground">#FFF4F7F6</item>
-    </style>
-</resources>
+<resources><style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar"><item name="android:windowBackground">#FFF8F6F2</item></style></resources>

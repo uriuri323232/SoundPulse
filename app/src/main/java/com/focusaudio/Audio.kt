@@ -1,7 +1,10 @@
 package com.focusaudio
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -10,6 +13,7 @@ import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.os.Build
 import android.speech.tts.TextToSpeech
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -73,7 +77,30 @@ object Audio {
 
 class PlaybackService : MediaSessionService() {
     private var s: MediaSession? = null
-    override fun onCreate() { super.onCreate(); s = runCatching { MediaSession.Builder(this, Audio.player(this)).build() }.getOrNull() }
+    override fun onCreate() { super.onCreate(); s = MediaSession.Builder(this, Audio.player(this)).build() }
+
+    // Promote to foreground immediately so Android's 5s startForeground deadline is always met.
+    // Uses Media3's own notification id/channel so its notification takes over seamlessly.
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        runCatching {
+            val chId = "default_channel_id"
+            if (Build.VERSION.SDK_INT >= 26) {
+                val nm = getSystemService(NotificationManager::class.java)
+                if (nm != null && nm.getNotificationChannel(chId) == null)
+                    nm.createNotificationChannel(NotificationChannel(chId, "השמעה", NotificationManager.IMPORTANCE_LOW))
+            }
+            val n = NotificationCompat.Builder(this, chId)
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentTitle("SoundPulse")
+                .setOngoing(true)
+                .build()
+            if (Build.VERSION.SDK_INT >= 29)
+                startForeground(1001, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            else startForeground(1001, n)
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = s
     override fun onDestroy() { s?.release(); s = null; super.onDestroy() }
 }
@@ -104,8 +131,7 @@ suspend fun analyze(ctx: Context, uri: Uri, key: String = uri.toString()): Float
 
 private fun decodeEnvelope(ctx: Context, uri: Uri): FloatArray {
     val ex = MediaExtractor(); ex.setDataSource(ctx, uri, null)
-    val ti = (0 until ex.trackCount).firstOrNull { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true }
-        ?: run { ex.release(); return FloatArray(0) }
+    val ti = (0 until ex.trackCount).first { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)!!.startsWith("audio/") }
     ex.selectTrack(ti)
     val f = ex.getTrackFormat(ti)
     val per = (f.getInteger(MediaFormat.KEY_SAMPLE_RATE) * f.getInteger(MediaFormat.KEY_CHANNEL_COUNT) / 10).coerceAtLeast(1)
