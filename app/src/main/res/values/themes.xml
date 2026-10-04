@@ -1,1 +1,8 @@
-<resources><style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar"><item name="android:windowBackground">#FFF8F6F2</item></style></resources>
+<resources>
+    <style name="Theme.DuplicateSongFinder" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#FFF4F6FD</item>
+        <item name="android:navigationBarColor">#FFFFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">#FFF4F6FD</item>
+    </style>
+</resources>
