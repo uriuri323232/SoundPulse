@@ -1,7 +1,7 @@
 <resources>
-    <style name="Theme.DuplicateSongFinder" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">#FF0A0D1A</item>
-        <item name="android:navigationBarColor">#FF131830</item>
-        <item name="android:windowBackground">#FF0A0D1A</item>
+    <style name="Theme.SoundPulse" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">#FF0E1416</item>
     </style>
 </resources>

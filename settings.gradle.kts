@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "DuplicateSongFinder"
+rootProject.name = "SoundPulse"
 include(":app")

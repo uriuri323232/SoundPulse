@@ -73,7 +73,7 @@ object Audio {
 
 class PlaybackService : MediaSessionService() {
     private var s: MediaSession? = null
-    override fun onCreate() { super.onCreate(); s = MediaSession.Builder(this, Audio.player(this)).build() }
+    override fun onCreate() { super.onCreate(); s = runCatching { MediaSession.Builder(this, Audio.player(this)).build() }.getOrNull() }
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = s
     override fun onDestroy() { s?.release(); s = null; super.onDestroy() }
 }
@@ -104,7 +104,8 @@ suspend fun analyze(ctx: Context, uri: Uri, key: String = uri.toString()): Float
 
 private fun decodeEnvelope(ctx: Context, uri: Uri): FloatArray {
     val ex = MediaExtractor(); ex.setDataSource(ctx, uri, null)
-    val ti = (0 until ex.trackCount).first { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)!!.startsWith("audio/") }
+    val ti = (0 until ex.trackCount).firstOrNull { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true }
+        ?: run { ex.release(); return FloatArray(0) }
     ex.selectTrack(ti)
     val f = ex.getTrackFormat(ti)
     val per = (f.getInteger(MediaFormat.KEY_SAMPLE_RATE) * f.getInteger(MediaFormat.KEY_CHANNEL_COUNT) / 10).coerceAtLeast(1)
