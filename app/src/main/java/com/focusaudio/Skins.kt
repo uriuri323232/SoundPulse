@@ -143,6 +143,8 @@ private val Coral = Color(0xFFE5566D)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text("הגדרות", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
 
+        CreditCard()
+
         Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth().clickable { showHelp = true }) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -216,6 +218,7 @@ private val Coral = Color(0xFFE5566D)
             Text("מדריך SoundPulse", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            CreditCard()
             Text("SoundPulse הוא נגן להקלטות ולשיעורים ארוכים. הכול עובד ללא אינטרנט, בלי פרסומות ובלי הרשמה. להלן כל מה שאפשר לעשות בו.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
@@ -259,7 +262,6 @@ private val Coral = Color(0xFFE5566D)
                 "בהגדרות אפשר לבחור סגנון נגן (SoundPulse / Spotify / YouTube Music), ערכת צבע מתוך 12, ומצב גרפיקה רגוע או מוגזם. הבחירה לא משנה אף פונקציה — רק את המראה.")
 
             Text("SoundPulse · גרסה ${BuildTag.VERSION}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("פותח על ידי יהודי לא פשוט @מתמחים טופ", Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -285,5 +287,24 @@ private val Coral = Color(0xFFE5566D)
             Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(checked = value, onCheckedChange = { onChange(it) })
+    }
+}
+
+/** Prominent credit banner, shown at the top of Settings and the guide. */
+@Composable fun CreditCard(modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    Box(modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+        .background(Brush.linearGradient(listOf(c.primary, c.tertiary))).padding(horizontal = 18.dp, vertical = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(52.dp).clip(CircleShape).background(c.onPrimary.copy(alpha = .2f)), Alignment.Center) {
+                Icon(Icons.Rounded.Favorite, null, tint = c.onPrimary, modifier = Modifier.size(28.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text("פותח על ידי", style = MaterialTheme.typography.labelMedium, color = c.onPrimary.copy(alpha = .85f))
+                Text("יהודי לא פשוט", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = c.onPrimary)
+                Text("@מתמחים טופ", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = c.onPrimary)
+            }
+        }
     }
 }
