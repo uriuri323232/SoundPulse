@@ -616,10 +616,24 @@ fun peaks(env: FloatArray?, n: Int): FloatArray {
     var busy by remember { mutableStateOf(false) }
     var ask by remember { mutableStateOf<Pair<String, List<Clip>>?>(null) }
     val played = all.filter { it.audio && it.uri.toString() in d.played && !it.name.endsWith(".m4a") }
+    // Two files at a time: the phone has several cores, so this is noticeably faster than one by one.
     fun run(list: List<Clip>) {
         if (list.isEmpty() || tree == null) { busy = false; msg = "הכיווץ הסתיים"; refresh(); return }
-        msg = "מכווץ ${list[0].name} (${list.size} נותרו)"; busy = true
-        compress(ctx, tree, list[0]) { run(list.drop(1)) }
+        busy = true
+        val queue = list.toMutableList(); val total = list.size
+        var active = 0; var finished = 0; var saved = 0
+        fun pump() {
+            while (active < 2 && queue.isNotEmpty()) {
+                val c = queue.removeAt(0); active++
+                msg = "מכווץ... ($finished מתוך $total)"
+                compress(ctx, tree, c) { ok ->
+                    active--; finished++; if (ok) saved++
+                    if (queue.isEmpty() && active == 0) { busy = false; msg = "הכיווץ הסתיים: כווצו $saved מתוך $total"; refresh() }
+                    else { msg = "מכווץ... ($finished מתוך $total)"; pump() }
+                }
+            }
+        }
+        pump()
     }
     if (tree == null) { Empty(Icons.Rounded.CleaningServices, "בחר תיקייה בלשונית הספרייה"); return }
     val playedMb = played.sumOf { it.size } / 1e6

@@ -1,6 +1,9 @@
 package com.focusaudio
 
 import android.content.Context
+import android.media.MediaMetadataRetriever
+import android.os.Handler
+import android.os.Looper
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import androidx.media3.common.MediaItem
@@ -8,6 +11,7 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.transformer.AudioEncoderSettings
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.DefaultEncoderFactory
+import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
@@ -35,11 +39,35 @@ fun scan(ctx: Context, all: List<Clip>, oldDays: Int = 90): Scan {
 
 fun delete(ctx: Context, list: List<Clip>) = list.forEach { runCatching { DocumentFile.fromSingleUri(ctx, it.uri)?.delete() } }
 
-/** Re-encodes to AAC (.m4a) at 48 kbps. The original is deleted only if the result is clearly smaller. */
+private const val BITRATE = 48000
+
+/** Rough size of the AAC result, from the duration. Lets us skip files that would not shrink, before spending time encoding them. */
+private fun worthCompressing(ctx: Context, c: Clip): Boolean = runCatching {
+    val r = MediaMetadataRetriever()
+    try {
+        r.setDataSource(ctx, c.uri)
+        val ms = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+        ms <= 0L || ms / 1000.0 * (BITRATE / 8.0) * 1.1 < c.size * 0.75
+    } finally { r.release() }
+}.getOrDefault(true)
+
+/**
+ * Re-encodes to AAC (.m4a) at 48 kbps. The original is deleted only if the result is clearly smaller.
+ * Files that cannot shrink are skipped quickly, and the caller can run several of these in parallel.
+ */
 fun compress(ctx: Context, tree: Uri, c: Clip, done: (Boolean) -> Unit) {
+    val main = Handler(Looper.getMainLooper())
+    Thread {
+        val worth = worthCompressing(ctx, c)
+        main.post { if (!worth) done(false) else export(ctx, tree, c, done) }
+    }.start()
+}
+
+private fun export(ctx: Context, tree: Uri, c: Clip, done: (Boolean) -> Unit) {
     val out = File(ctx.cacheDir, "c_${c.uri.toString().hashCode()}.m4a")
     val enc = DefaultEncoderFactory.Builder(ctx)
-        .setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(48000).build()).build()
+        .setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(BITRATE).build()).build()
+    val item = EditedMediaItem.Builder(MediaItem.fromUri(c.uri)).setRemoveVideo(true).build()
     Transformer.Builder(ctx).setAudioMimeType(MimeTypes.AUDIO_AAC).setEncoderFactory(enc)
         .addListener(object : Transformer.Listener {
             override fun onCompleted(composition: Composition, exportResult: ExportResult) {
@@ -47,13 +75,13 @@ fun compress(ctx: Context, tree: Uri, c: Clip, done: (Boolean) -> Unit) {
                     var ok = false
                     if (out.length() in 1 until (c.size * 0.75).toLong()) runCatching {
                         val nf = DocumentFile.fromTreeUri(ctx, tree)!!.createFile("audio/mp4", c.name.substringBeforeLast('.') + ".m4a")!!
-                        ctx.contentResolver.openOutputStream(nf.uri)!!.use { o -> out.inputStream().use { it.copyTo(o) } }
+                        ctx.contentResolver.openOutputStream(nf.uri)!!.use { o -> out.inputStream().use { it.copyTo(o, 256 * 1024) } }
                         DocumentFile.fromSingleUri(ctx, c.uri)?.delete(); ok = true
                     }
                     out.delete()
-                    android.os.Handler(android.os.Looper.getMainLooper()).post { done(ok) }
+                    Handler(Looper.getMainLooper()).post { done(ok) }
                 }.start()
             }
             override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) { out.delete(); done(false) }
-        }).build().let { tr -> runCatching { tr.start(MediaItem.fromUri(c.uri), out.absolutePath) }.onFailure { done(false) } }
+        }).build().let { tr -> runCatching { tr.start(item, out.absolutePath) }.onFailure { out.delete(); done(false) } }
 }

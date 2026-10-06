@@ -23,6 +23,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -258,6 +259,7 @@ private val Coral = Color(0xFFE5566D)
                 "בהגדרות אפשר לבחור סגנון נגן (SoundPulse / Spotify / YouTube Music), ערכת צבע מתוך 12, ומצב גרפיקה רגוע או מוגזם. הבחירה לא משנה אף פונקציה — רק את המראה.")
 
             Text("SoundPulse · גרסה ${BuildTag.VERSION}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("פותח על ידי יהודי לא פשוט @מתמחים טופ", Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
