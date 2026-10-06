@@ -20,6 +20,9 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import kotlinx.coroutines.Dispatchers
@@ -60,10 +63,10 @@ class Fx(sid: Int) {
 object Audio {
     private var p: ExoPlayer? = null
     var fx: Fx? = null
-    fun player(c: Context): ExoPlayer = p ?: ExoPlayer.Builder(c.applicationContext)
+    fun player(c: Context): ExoPlayer = p ?: ExoPlayer.Builder(c.applicationContext, DefaultMediaSourceFactory(c.applicationContext, DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true)))
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
         .setHandleAudioBecomingNoisy(true).setWakeMode(C.WAKE_MODE_LOCAL).build()
-        .also { p = it; fx = Fx(it.audioSessionId) }
+        .also { p = it; it.setSeekParameters(SeekParameters.CLOSEST_SYNC); fx = Fx(it.audioSessionId) }
 
     fun play(c: Context, uri: Uri, name: String, startMs: Long = 0L) {
         val p = player(c)
@@ -122,7 +125,9 @@ suspend fun analyze(ctx: Context, uri: Uri, key: String = uri.toString()): Float
             return@withContext FloatArray(bb.remaining()).also { bb.get(it) }
         }
     }
-    val res = decodeEnvelope(ctx, uri)
+    val oldPri = Thread.currentThread().priority
+    runCatching { Thread.currentThread().priority = Thread.MIN_PRIORITY }
+    val res = try { decodeEnvelope(ctx, uri) } finally { runCatching { Thread.currentThread().priority = oldPri } }
     runCatching {
         val bb = java.nio.ByteBuffer.allocate(res.size * 4); bb.asFloatBuffer().put(res); cf.writeBytes(bb.array())
     }

@@ -165,7 +165,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     }
     LaunchedEffect(Unit) {
         while (true) {
-            delay(5000)
+            delay(10_000)
             val c = curS
             if (c != null && p.isPlaying) { val k = c.uri.toString(); val ps = p.currentPosition; set { x -> x.copy(pos = x.pos + (k to ps)) } }
         }
@@ -194,6 +194,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
         p.addListener(l); onDispose { p.removeListener(l); sp.shutdown() }
     }
     LaunchedEffect(d.fx) { Audio.fx?.on(d.fx) }
+    LaunchedEffect(d.repeat) { runCatching { p.repeatMode = if (d.repeat) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF } }
     LaunchedEffect(d.skin, d.palette) { onTheme(d.palette, d.skin) }
     val deleteMark: (Mark) -> Unit = { m ->
         set { x -> x.copy(marks = x.marks - m) }
@@ -393,28 +394,56 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     }
 }
 
+/** Precomputed bar heights (0..1), so drawing never scans the whole recording. */
+fun peaks(env: FloatArray?, n: Int): FloatArray {
+    if (env == null || env.isEmpty()) return FloatArray(0)
+    val out = FloatArray(n); var top = 0.01f
+    for (i in 0 until n) {
+        val a = (i.toLong() * env.size / n).toInt(); val b = maxOf(a + 1, ((i + 1).toLong() * env.size / n).toInt()).coerceAtMost(env.size)
+        var m = 0f; for (k in a until b) if (env[k] > m) m = env[k]
+        out[i] = m; if (m > top) top = m
+    }
+    for (i in out.indices) out[i] = out[i] / top
+    return out
+}
+
 @Composable fun Wave(env: FloatArray?, pos: Long, dur: Long, cuts: List<Long>, marks: List<Mark>, modifier: Modifier = Modifier.fillMaxWidth().height(110.dp), onSeek: (Long) -> Unit) {
     val on = MaterialTheme.colorScheme.primary; val off = MaterialTheme.colorScheme.outlineVariant
     val cutC = MaterialTheme.colorScheme.tertiary
+    val bars = remember(env) { peaks(env, 160) }
+    var drag by remember { mutableStateOf<Float?>(null) }   // seek only when the finger lifts, so dragging stays smooth
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Canvas(modifier
-            .pointerInput(dur) { detectTapGestures { o -> onSeek((o.x / size.width * dur).toLong().coerceIn(0, dur)) } }
-            .pointerInput(dur) { detectHorizontalDragGestures { ch, _ -> onSeek((ch.position.x / size.width * dur).toLong().coerceIn(0, dur)) } }) {
-            val n = (size.width / 5).toInt().coerceAtLeast(1); val cy = size.height / 2
-            if (env != null && env.isNotEmpty()) {
-                val top = (env.maxOrNull() ?: 0.01f).coerceAtLeast(0.01f)
-                for (i in 0 until n) {
-                    val a = i * env.size / n; val b = maxOf(a + 1, (i + 1) * env.size / n)
-                    var m = 0f; for (k in a until minOf(b, env.size)) if (env[k] > m) m = env[k]
-                    val h = (m / top * cy * .9f).coerceAtLeast(2f); val x = i * 5f + 2.5f
-                    drawLine(if (dur > 0 && x / size.width < pos.toFloat() / dur) on else off, Offset(x, cy - h), Offset(x, cy + h), 3f, StrokeCap.Round)
+        Box(modifier) {
+            Canvas(Modifier.fillMaxSize()
+                .pointerInput(dur) { detectTapGestures { o -> onSeek((o.x / size.width * dur).toLong().coerceIn(0, dur)) } }
+                .pointerInput(dur) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { o -> drag = (o.x / size.width).coerceIn(0f, 1f) },
+                        onDragEnd = { drag?.let { onSeek((it * dur).toLong().coerceIn(0, dur)) }; drag = null },
+                        onDragCancel = { drag = null }
+                    ) { ch, _ -> drag = (ch.position.x / size.width).coerceIn(0f, 1f) }
+                }) {
+                val cy = size.height / 2
+                val frac = drag ?: if (dur > 0) pos.toFloat() / dur else 0f
+                if (bars.isNotEmpty()) {
+                    val n = bars.size; val bw = size.width / n
+                    for (i in 0 until n) {
+                        val h = (bars[i] * cy * .9f).coerceAtLeast(2f); val x = i * bw + bw / 2
+                        drawLine(if (x / size.width < frac) on else off, Offset(x, cy - h), Offset(x, cy + h), (bw * .62f).coerceAtLeast(2f), StrokeCap.Round)
+                    }
+                }
+                if (dur > 0) {
+                    cuts.forEach { val x = it.toFloat() / dur * size.width; drawLine(cutC, Offset(x, 0f), Offset(x, size.height), 2f) }
+                    marks.forEach { val x = it.ms.toFloat() / dur * size.width
+                        if (it.flag) { drawLine(Coral, Offset(x, 0f), Offset(x, size.height), 3f); drawCircle(Coral, 9f, Offset(x, 9f)) }
+                        else drawCircle(on, 7f, Offset(x, size.height - 9f)) }
+                    drawLine(Color.White, Offset(frac * size.width, 0f), Offset(frac * size.width, size.height), 3f)
                 }
             }
-            if (dur > 0) {
-                cuts.forEach { val x = it.toFloat() / dur * size.width; drawLine(cutC, Offset(x, 0f), Offset(x, size.height), 2f) }
-                marks.forEach { val x = it.ms.toFloat() / dur * size.width
-                    if (it.flag) { drawLine(Coral, Offset(x, 0f), Offset(x, size.height), 3f); drawCircle(Coral, 9f, Offset(x, 9f)) }
-                    else drawCircle(on, 7f, Offset(x, size.height - 9f)) }
+            drag?.let { f ->
+                Surface(Modifier.align(Alignment.TopCenter).padding(top = 4.dp), shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primary) {
+                    Text(fmt((f * dur).toLong()), Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -432,7 +461,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     var editing by remember { mutableStateOf<Mark?>(null) }
     var sheet by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
-    LaunchedEffect(Unit) { while (true) { runCatching { pos = p.currentPosition; dur = p.duration.let { if (it > 0) it else 1L }; playing = p.isPlaying }; now = System.currentTimeMillis(); delay(250) } }
+    LaunchedEffect(Unit) { while (true) { runCatching { pos = p.currentPosition; dur = p.duration.let { if (it > 0) it else 1L }; playing = p.isPlaying }; now = System.currentTimeMillis() / 10000 * 10000; delay(250) } }
     if (cur == null) { Empty(Icons.Rounded.GraphicEq, "בחר הקלטה מהספרייה"); return }
     val key = cur.uri.toString()
     val marks = d.marks.filter { it.uri == key }.sortedBy { it.ms }
@@ -446,11 +475,11 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
         Text(cur.name.substringBeforeLast('.'), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Card(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.padding(14.dp).fillMaxSize()) {
-                Wave(env, pos, dur, cuts, marks, modifier = Modifier.fillMaxWidth().weight(1f).heightIn(min = 60.dp)) { seek(it) }
+                Wave(env, pos, dur, cuts, marks, modifier = Modifier.fillMaxWidth().weight(1f).heightIn(min = 90.dp)) { seek(it) }
                 Row(Modifier.fillMaxWidth().padding(top = 6.dp), Arrangement.SpaceBetween) {
                     Text(fmt(pos), style = MaterialTheme.typography.labelLarge)
                     if (env == null) Text("מנתח...", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(fmt(dur), style = MaterialTheme.typography.labelLarge)
+                    Text("נותרו " + fmt(dur - pos), style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
@@ -463,21 +492,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
             IconButton({ seek(pos + 30_000) }, Modifier.size(52.dp)) { Icon(Icons.Rounded.Forward30, "קדימה 30 שניות", Modifier.size(32.dp)) }
             IconButton({ nextChapter() }, Modifier.size(46.dp)) { Icon(Icons.Rounded.SkipNext, "פרק הבא", Modifier.size(28.dp)) }
         }
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            AssistChip(onClick = {
-                val i = speeds.indexOf(d.speed); val nv = speeds[(if (i < 0) 1 else i + 1) % speeds.size]
-                set { it.copy(speed = nv) }; runCatching { p.setPlaybackSpeed(nv) }
-            }, label = { Text("${d.speed}x") }, leadingIcon = { Icon(Icons.Rounded.Speed, null, Modifier.size(18.dp)) })
-            AssistChip(onClick = {
-                if (sleepLeft <= 0L) onSleep(System.currentTimeMillis() + 15 * 60000L)
-                else if (sleepLeft <= 15) onSleep(System.currentTimeMillis() + 30 * 60000L)
-                else if (sleepLeft <= 30) onSleep(System.currentTimeMillis() + 60 * 60000L)
-                else onSleep(0L)
-            }, label = { Text(if (sleepLeft > 0) "שינה $sleepLeft׳" else "טיימר שינה") }, leadingIcon = { Icon(Icons.Rounded.Timer, null, Modifier.size(18.dp)) })
-            FilterChip(selected = d.fx, onClick = { val nv = !d.fx; set { it.copy(fx = nv) }; Audio.fx?.on(nv) }, label = { Text("מעבד דיבור") })
-            FilterChip(selected = d.skip, onClick = { val nv = !d.skip; set { it.copy(skip = nv) }; runCatching { p.skipSilenceEnabled = nv } }, label = { Text("דלג שקטים") })
-            FilterChip(selected = d.autoNext, onClick = { val nv = !d.autoNext; set { it.copy(autoNext = nv) } }, label = { Text("המשך אוטומטי") })
-        }
+        PlayerOptions(d, set, p, sleepLeft, onSleep)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(note, { note = it }, Modifier.weight(1f), placeholder = { Text("הערה לנקודה") }, singleLine = true, shape = RoundedCornerShape(14.dp))
             FilledIconButton({ haptic.performHapticFeedback(HapticFeedbackType.LongPress); set { x -> x.copy(marks = x.marks + Mark(key, pos, note.ifBlank { "סימנייה" })) }; note = "" }, Modifier.size(52.dp)) { Icon(Icons.Rounded.Bookmark, "הוסף סימנייה") }

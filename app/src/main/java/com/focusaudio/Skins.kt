@@ -54,7 +54,7 @@ private val Coral = Color(0xFFE5566D)
     var note by rememberSaveable { mutableStateOf("") }
     var editing by remember { mutableStateOf<Mark?>(null) }
     var sheet by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { while (true) { runCatching { pos = p.currentPosition; dur = p.duration.let { if (it > 0) it else 1L }; playing = p.isPlaying }; now = System.currentTimeMillis(); delay(250) } }
+    LaunchedEffect(Unit) { while (true) { runCatching { pos = p.currentPosition; dur = p.duration.let { if (it > 0) it else 1L }; playing = p.isPlaying }; now = System.currentTimeMillis() / 10000 * 10000; delay(250) } }
 
     val bg = Brush.verticalGradient(listOf(skinTop(skin, pal), skinBg(skin, pal), skinBg(skin, pal)))
     Box(Modifier.fillMaxSize().background(bg)) {
@@ -105,21 +105,7 @@ private val Coral = Color(0xFFE5566D)
                 IconButton({ seek(pos + 30_000) }, Modifier.size(46.dp)) { Icon(Icons.Rounded.Forward30, "קדימה 30", Modifier.size(28.dp), tint = White) }
                 IconButton({ nextChapter() }, Modifier.size(46.dp)) { Icon(Icons.Rounded.SkipNext, "פרק הבא", Modifier.size(30.dp), tint = White) }
             }
-            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                AssistChip(onClick = {
-                    val i = speeds.indexOf(d.speed); val nv = speeds[(if (i < 0) 1 else i + 1) % speeds.size]
-                    set { it.copy(speed = nv) }; runCatching { p.setPlaybackSpeed(nv) }
-                }, label = { Text("${d.speed}x") }, leadingIcon = { Icon(Icons.Rounded.Speed, null, Modifier.size(18.dp)) })
-                AssistChip(onClick = {
-                    if (sleepLeft <= 0L) onSleep(System.currentTimeMillis() + 15 * 60000L)
-                    else if (sleepLeft <= 15) onSleep(System.currentTimeMillis() + 30 * 60000L)
-                    else if (sleepLeft <= 30) onSleep(System.currentTimeMillis() + 60 * 60000L)
-                    else onSleep(0L)
-                }, label = { Text(if (sleepLeft > 0) "שינה $sleepLeft׳" else "שינה") }, leadingIcon = { Icon(Icons.Rounded.Timer, null, Modifier.size(18.dp)) })
-                FilterChip(selected = d.fx, onClick = { val nv = !d.fx; set { it.copy(fx = nv) }; Audio.fx?.on(nv) }, label = { Text("מעבד דיבור") })
-                FilterChip(selected = d.skip, onClick = { val nv = !d.skip; set { it.copy(skip = nv) }; runCatching { p.skipSilenceEnabled = nv } }, label = { Text("דלג שקטים") })
-                FilterChip(selected = d.autoNext, onClick = { val nv = !d.autoNext; set { it.copy(autoNext = nv) } }, label = { Text("המשך") })
-            }
+            PlayerOptions(d, set, p, sleepLeft, onSleep)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(note, { note = it }, Modifier.weight(1f), placeholder = { Text("הערה לנקודה") }, singleLine = true, shape = RoundedCornerShape(14.dp))
                 FilledIconButton({ haptic.performHapticFeedback(HapticFeedbackType.LongPress); set { x -> x.copy(marks = x.marks + Mark(key, pos, note.ifBlank { "סימנייה" })) }; note = "" }, Modifier.size(52.dp)) { Icon(Icons.Rounded.Bookmark, "סימנייה") }
