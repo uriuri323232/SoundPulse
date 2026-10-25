@@ -8,11 +8,13 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 @Serializable data class Mark(val uri: String, val ms: Long, val text: String, val flag: Boolean = false)
+@Serializable data class Last(val uri: String, val name: String, val size: Long = 0L, val mod: Long = 0L)
 @Serializable data class AppData(
     val folder: String? = null, val played: Set<String> = emptySet(), val marks: List<Mark> = emptyList(), val fx: Boolean = true,
     val pos: Map<String, Long> = emptyMap(), val speed: Float = 1f, val skip: Boolean = false,
     val autoNext: Boolean = true, val invert: Boolean = false, val speak: Boolean = false,
-    val skin: String = "soundpulse", val palette: String = "aurora", val hyper: Boolean = false, val repeat: Boolean = false
+    val skin: String = "soundpulse", val palette: String = "aurora", val hyper: Boolean = false, val repeat: Boolean = false,
+    val last: Last? = null, val dur: Map<String, Long> = emptyMap(), val skipSec: Int = 30, val sort: String = "name"
 )
 
 val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }

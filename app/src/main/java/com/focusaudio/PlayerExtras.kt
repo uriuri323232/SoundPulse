@@ -8,13 +8,30 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.exoplayer.ExoPlayer
+import kotlin.math.roundToInt
 
 private val SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f)
+
+/** Skip-back / skip-forward icon that shows the configured number of seconds (5, 10, 15, 30...). */
+@Composable fun SkipIcon(back: Boolean, sec: Int, size: Dp = 32.dp, tint: Color = LocalContentColor.current) {
+    val desc = (if (back) "אחורה " else "קדימה ") + sec + " שניות"
+    Box(Modifier.size(size).semantics { contentDescription = desc }, Alignment.Center) {
+        Icon(Icons.Rounded.Replay, null, Modifier.fillMaxSize().graphicsLayer { scaleX = if (back) 1f else -1f }, tint = tint)
+        Text("$sec", fontSize = (size.value * 0.30f).sp, fontWeight = FontWeight.Bold, color = tint)
+    }
+}
 private val SLEEP_MIN = listOf(5, 15, 30, 45, 60, 90)
 
 @Composable private fun RowScope.OptTile(icon: ImageVector, title: String, state: String, active: Boolean, onClick: () -> Unit) {
@@ -56,8 +73,15 @@ private val SLEEP_MIN = listOf(5, 15, 30, 45, 60, 90)
     }
     if (speedDlg) AlertDialog(onDismissRequest = { speedDlg = false }, title = { Text("מהירות השמעה") },
         text = {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                SPEEDS.forEach { s -> FilterChip(selected = d.speed == s, onClick = { set { it.copy(speed = s) }; runCatching { p.setPlaybackSpeed(s) }; speedDlg = false }, label = { Text("${s}x") }) }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    FilledTonalIconButton({ val ns = (((d.speed - 0.05f) * 20).roundToInt() / 20f).coerceIn(0.5f, 3.5f); set { it.copy(speed = ns) }; runCatching { p.setPlaybackSpeed(ns) } }) { Icon(Icons.Rounded.Remove, "האט") }
+                    Text("${d.speed}x", Modifier.widthIn(min = 110.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    FilledTonalIconButton({ val ns = (((d.speed + 0.05f) * 20).roundToInt() / 20f).coerceIn(0.5f, 3.5f); set { it.copy(speed = ns) }; runCatching { p.setPlaybackSpeed(ns) } }) { Icon(Icons.Rounded.Add, "האץ") }
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SPEEDS.forEach { s -> FilterChip(selected = d.speed == s, onClick = { set { it.copy(speed = s) }; runCatching { p.setPlaybackSpeed(s) } }, label = { Text("${s}x") }) }
+                }
             }
         }, confirmButton = { TextButton({ speedDlg = false }) { Text("סגור") } })
     if (sleepDlg) AlertDialog(onDismissRequest = { sleepDlg = false }, title = { Text("השהיה אוטומטית אחרי...") },

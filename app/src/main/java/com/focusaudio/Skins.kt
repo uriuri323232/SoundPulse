@@ -32,16 +32,16 @@ private val White = Color(0xFFFFFFFF)
 private val Black = Color(0xFF0A0A0A)
 private val Coral = Color(0xFFE5566D)
 
-@Composable fun PlayerSpotify(d: AppData, set: Setter, cur: Clip?, env: FloatArray?, cuts: List<Long>, sleepAt: Long, onSleep: (Long) -> Unit, onDelete: (Mark) -> Unit, onGesture: () -> Unit) =
-    SkinPlayer(Skin.SPOTIFY, d, set, cur, env, cuts, sleepAt, onSleep, onDelete, onGesture)
+@Composable fun PlayerSpotify(d: AppData, set: Setter, cur: Clip?, env: FloatArray?, cuts: List<Long>, sleepAt: Long, onSleep: (Long) -> Unit, onDelete: (Mark) -> Unit, onClose: () -> Unit, onGesture: () -> Unit) =
+    SkinPlayer(Skin.SPOTIFY, d, set, cur, env, cuts, sleepAt, onSleep, onDelete, onClose, onGesture)
 
-@Composable fun PlayerYtm(d: AppData, set: Setter, cur: Clip?, env: FloatArray?, cuts: List<Long>, sleepAt: Long, onSleep: (Long) -> Unit, onDelete: (Mark) -> Unit, onGesture: () -> Unit) =
-    SkinPlayer(Skin.YTM, d, set, cur, env, cuts, sleepAt, onSleep, onDelete, onGesture)
+@Composable fun PlayerYtm(d: AppData, set: Setter, cur: Clip?, env: FloatArray?, cuts: List<Long>, sleepAt: Long, onSleep: (Long) -> Unit, onDelete: (Mark) -> Unit, onClose: () -> Unit, onGesture: () -> Unit) =
+    SkinPlayer(Skin.YTM, d, set, cur, env, cuts, sleepAt, onSleep, onDelete, onClose, onGesture)
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable private fun SkinPlayer(
     skin: Skin, d: AppData, set: Setter, cur: Clip?, env: FloatArray?, cuts: List<Long>,
-    sleepAt: Long, onSleep: (Long) -> Unit, onDelete: (Mark) -> Unit, onGesture: () -> Unit
+    sleepAt: Long, onSleep: (Long) -> Unit, onDelete: (Mark) -> Unit, onClose: () -> Unit, onGesture: () -> Unit
 ) {
     val ctx = LocalContext.current
     val p = remember { Audio.player(ctx) }
@@ -71,9 +71,9 @@ private val Coral = Color(0xFFE5566D)
 
         Column(Modifier.fillMaxSize().padding(horizontal = 18.dp).padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.KeyboardArrowDown, null, tint = White)
+                IconButton(onClose) { Icon(Icons.Rounded.KeyboardArrowDown, "חזרה לספרייה", tint = White) }
                 Text(if (skin == Skin.YTM) "הנגן" else "מושמע מתוך הספרייה", style = MaterialTheme.typography.labelMedium, color = Color(0xCCFFFFFF))
-                Icon(Icons.Rounded.MoreVert, null, tint = White)
+                IconButton({ sheet = true }) { Icon(Icons.Rounded.MoreVert, "פרקים וסימונים", tint = White) }
             }
             // "art" = the live waveform, filling the free space
             Box(Modifier.fillMaxWidth().weight(1f).heightIn(min = 120.dp).clip(RoundedCornerShape(if (skin == Skin.YTM) 10.dp else 16.dp))
@@ -85,7 +85,7 @@ private val Coral = Color(0xFFE5566D)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(cur.name.substringBeforeLast('.'), color = White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(if (env == null) "מנתח..." else "פרקים: ${cuts.size + 1} · סימונים: ${marks.size}", color = Color(0xB3FFFFFF), style = MaterialTheme.typography.bodySmall)
+                    Text(if (env == null) "מנתח..." else "פרק ${cuts.count { it <= pos } + 1} מתוך ${cuts.size + 1} · סימונים: ${marks.size}", color = Color(0xB3FFFFFF), style = MaterialTheme.typography.bodySmall)
                 }
                 IconButton({ haptic.performHapticFeedback(HapticFeedbackType.LongPress); set { x -> x.copy(marks = x.marks + Mark(key, pos, note.ifBlank { "דגל" }, true)) }; note = "" }) {
                     Icon(if (skin == Skin.YTM) Icons.Rounded.ThumbUp else Icons.Rounded.Favorite, "סמן", tint = accent)
@@ -99,11 +99,11 @@ private val Coral = Color(0xFFE5566D)
             }
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Alignment.CenterVertically) {
                 IconButton({ prevChapter() }, Modifier.size(46.dp)) { Icon(Icons.Rounded.SkipPrevious, "פרק קודם", Modifier.size(30.dp), tint = White) }
-                IconButton({ seek(pos - 30_000) }, Modifier.size(46.dp)) { Icon(Icons.Rounded.Replay30, "אחורה 30", Modifier.size(28.dp), tint = White) }
+                IconButton({ seek(pos - d.skipSec * 1000L) }, Modifier.size(46.dp)) { SkipIcon(true, d.skipSec, 30.dp, White) }
                 Box(Modifier.size(66.dp).clip(CircleShape).background(White).clickable { runCatching { if (p.isPlaying) p.pause() else p.play() } }, Alignment.Center) {
                     Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "נגן או השהה", Modifier.size(38.dp), tint = Black)
                 }
-                IconButton({ seek(pos + 30_000) }, Modifier.size(46.dp)) { Icon(Icons.Rounded.Forward30, "קדימה 30", Modifier.size(28.dp), tint = White) }
+                IconButton({ seek(pos + d.skipSec * 1000L) }, Modifier.size(46.dp)) { SkipIcon(false, d.skipSec, 30.dp, White) }
                 IconButton({ nextChapter() }, Modifier.size(46.dp)) { Icon(Icons.Rounded.SkipNext, "פרק הבא", Modifier.size(30.dp), tint = White) }
             }
             PlayerOptions(d, set, p, sleepLeft, onSleep)
@@ -115,9 +115,6 @@ private val Coral = Color(0xFFE5566D)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(onGesture, Modifier.weight(1f).height(48.dp)) { Icon(Icons.Rounded.DirectionsWalk, null); Spacer(Modifier.width(6.dp)); Text("מצב הליכה") }
                 FilledTonalButton({ sheet = true }, Modifier.weight(1f).height(48.dp)) { Icon(Icons.Rounded.FormatListBulleted, null); Spacer(Modifier.width(6.dp)); Text("פרקים וסימונים") }
-            }
-            if (skin == Skin.YTM) Row(Modifier.fillMaxWidth().padding(top = 2.dp), Arrangement.SpaceAround) {
-                Text("הבא", color = White, fontWeight = FontWeight.Bold); Text("מילים", color = Color(0x99FFFFFF)); Text("קשור", color = Color(0x99FFFFFF))
             }
         }
         if (sheet) ModalBottomSheet(onDismissRequest = { sheet = false }) {
@@ -192,10 +189,13 @@ private val Coral = Color(0xFFE5566D)
             }
         }
 
-        Text("עוצמת גרפיקה", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FilterChip(selected = !d.hyper, onClick = { set { it.copy(hyper = false) } }, label = { Text("רגוע") }, leadingIcon = { Icon(Icons.Rounded.GraphicEq, null, Modifier.size(18.dp)) })
-            FilterChip(selected = d.hyper, onClick = { set { it.copy(hyper = true) } }, label = { Text("מוגזם") }, leadingIcon = { Icon(Icons.Rounded.Bolt, null, Modifier.size(18.dp)) })
+        HorizontalDivider()
+        Text("אורך קפיצה", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("חל על כפתורי הקפיצה בנגן, בנגן המיני ובמצב הליכה", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(5, 10, 15, 30, 45, 60).forEach { sec ->
+                FilterChip(selected = d.skipSec == sec, onClick = { set { it.copy(skipSec = sec) } }, label = { Text("$sec שנ'") })
+            }
         }
 
         HorizontalDivider()
@@ -235,7 +235,7 @@ private val Coral = Color(0xFFE5566D)
                 "בזמן ההשמעה אפשר לכתוב הערה לנקודה הנוכחית ולשמור אותה כ‏סימנייה (כחולה) או כ‏דגל (אדום, להדגשה). אפשר לערוך ולמחוק (עם ביטול). כל הסימונים מכל ההקלטות מרוכזים בטאב \"סימונים\", עם סינון וקפיצה ישירה לנקודה, ואפשר לשתף אותם כטקסט.")
 
             HelpItem(Icons.Rounded.Speed, "מהירות השמעה",
-                "לחיצה על שבב המהירות מחליפה בין 0.75x ל-3x. המהירות נשמרת בין הפעלות. שימושי להאזנה מהירה לשיעורים ארוכים.")
+                "לחיצה על אריח המהירות פותחת בחירה מהירה מ-0.5x עד 3x, וגם כוונון עדין בקפיצות של 0.05. המהירות נשמרת בין הפעלות.")
 
             HelpItem(Icons.Rounded.RecordVoiceOver, "מעבד דיבור",
                 "שבב \"מעבד דיבור\" מפעיל עיבוד קול שמבהיר דיבור: מגביר את תחום התדרים של הדיבור, מחליש רעש רקע ורעמים, ומשווה בין קטעים חזקים וחלשים כך שהעוצמה אחידה. מצוין להקלטות שיעור לא מקצועיות. אפשר לכבות אם מעדיפים את הקול המקורי. (זמינות התכונה תלויה במכשיר.)")
@@ -244,7 +244,7 @@ private val Coral = Color(0xFFE5566D)
                 "שבב \"דלג שקטים\" מקצר אוטומטית שתיקות ארוכות בזמן ההשמעה, כדי לחסוך זמן בלי לפספס תוכן.")
 
             HelpItem(Icons.Rounded.Timer, "טיימר שינה",
-                "לחיצות על שבב הטיימר קובעות כיבוי אוטומטי בעוד 15 / 30 / 60 דקות, ואז הנגן נעצר לבד. לחיצה נוספת מבטלת.")
+                "בבחירת הטיימר קובעים עצירה אוטומטית אחרי 5 עד 90 דקות. בחצי הדקה האחרונה הקול נחלש בהדרגה, ואז הנגן נעצר לבד. אפשר לבטל בכל רגע.")
 
             HelpItem(Icons.Rounded.PlaylistPlay, "המשך אוטומטי",
                 "כשמופעל, בסוף הקלטה האפליקציה עוברת אוטומטית להקלטה הבאה באותה תיקייה.")
@@ -253,13 +253,16 @@ private val Coral = Color(0xFFE5566D)
                 "הופך את כל המסך לשלט מחוות, כדי להפעיל בלי להסתכל (למשל תוך כדי הליכה):\n• הקשה — ניגון/השהיה\n• החלקה ימינה — 30 שניות קדימה; שמאלה — אחורה (אפשר להפוך כיוון)\n• החלקה למעלה — סימנייה; למטה — הפרק הבא\n• לחיצה ארוכה — דגל\n• הקשה כפולה — הקראה קולית (שם ההקלטה / כמה נשאר / הסימנייה האחרונה)\nכל פעולה מלווה ברטט ובהבהוב, ואפשר להפעיל אישור קולי שמקריא כל פעולה. המסך נשאר דלוק.")
 
             HelpItem(Icons.Rounded.FolderOpen, "ספרייה וניווט תיקיות",
-                "בוחרים תיקיית הקלטות פעם אחת. אפשר להיכנס לתת-תיקיות ולחזור אחורה כמו בסייר קבצים, לחפש הקלטות ותיקיות, לסנן \"שלא הושמעו\" ולמיין \"החדשות קודם\". נגן מיני מופיע בתחתית בכל הלשוניות.")
+                "בוחרים תיקיית הקלטות פעם אחת. אפשר להיכנס לתת-תיקיות ולחזור אחורה כמו בסייר קבצים, לחפש הקלטות ותיקיות, לסנן \"שלא הושמעו\" או \"באמצע\", ולמיין לפי שם, חדשות, ישנות או גדולות. לכל הקלטה יש פס התקדמות ומשך, ובתפריט הנקודות אפשר לסמן כהושמע או לאפס את המקום השמור. נגן מיני עם כפתורי קפיצה מופיע בתחתית בכל הלשוניות.")
+
+            HelpItem(Icons.Rounded.Restore, "חזרה למקום האחרון",
+                "כשפותחים את האפליקציה היא טוענת מחדש את ההקלטה האחרונה בנקודה שבה עצרת, ומוכנה להמשך בלחיצה אחת בנגן המיני.")
 
             HelpItem(Icons.Rounded.Compress, "כיווץ הקלטות שהושמעו",
                 "בלשונית \"אחסון\" אפשר לחסוך מקום: האפליקציה ממירה ל-AAC (איכות דיבור) רק הקלטות שכבר הושמעו במלואן, וכך הן תופסות הרבה פחות מקום. הקלטות שלא הושמעו לא נוגעים בהן. אפשר לסמן הקלטה כ\"הושמעה\" ידנית מכפתור \"עוד\" שבנגן. באותו מסך יש גם סורק שמאתר קבצים כפולים, ישנים וזבל למחיקה.")
 
             HelpItem(Icons.Rounded.Palette, "עיצוב וערכות",
-                "בהגדרות אפשר לבחור סגנון נגן (SoundPulse / Spotify / YouTube Music), ערכת צבע מתוך 12, ומצב גרפיקה רגוע או מוגזם. הבחירה לא משנה אף פונקציה — רק את המראה.")
+                "בהגדרות אפשר לבחור סגנון נגן (SoundPulse / Spotify / YouTube Music), ערכת צבע מתוך 12, ואפשר גם לשנות את אורך הקפיצה. הבחירה בסגנון ובצבעים לא משנה אף פונקציה, רק את המראה.")
 
             Text("SoundPulse · גרסה ${BuildTag.VERSION}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

@@ -142,6 +142,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
         curS?.let { old -> runCatching { val k = old.uri.toString(); val ps = p.currentPosition; set { x -> x.copy(pos = x.pos + (k to ps)) } } }
         val st = if (start >= 0) start else maxOf(0L, (dS.pos[c.uri.toString()] ?: 0L) - 3000L)
         cur = c
+        set { x -> x.copy(last = Last(c.uri.toString(), c.name, c.size, c.mod)) }
         Audio.play(ctx, c.uri, c.name, st)
         runCatching { p.setPlaybackSpeed(dS.speed); p.skipSilenceEnabled = dS.skip }
     }
@@ -157,11 +158,32 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     }
     LaunchedEffect(err) { err?.let { snack.showSnackbar(it); err = null } }
     LaunchedEffect(Unit) { runCatching { p.setPlaybackSpeed(dS.speed); p.skipSilenceEnabled = dS.skip } }
+    // Restore the last session: reattach to a recording that is still loaded, or load the last one paused at its saved spot.
+    LaunchedEffect(Unit) {
+        if (cur == null && dS.folder != null) {
+            val item = p.currentMediaItem
+            val live = item?.localConfiguration?.uri
+            val l = dS.last
+            if (item != null && live != null) {
+                val m = l?.takeIf { it.uri == live.toString() }
+                cur = Clip(item.mediaMetadata.title?.toString() ?: m?.name ?: "הקלטה", live, m?.size ?: 0L, m?.mod ?: 0L, true)
+            } else if (l != null) {
+                val u = Uri.parse(l.uri)
+                cur = Clip(l.name, u, l.size, l.mod, true)
+                Audio.load(ctx, u, l.name, maxOf(0L, (dS.pos[l.uri] ?: 0L) - 3000L))
+            }
+        }
+    }
+    // Sleep timer with a gentle 20 second fade-out before pausing.
     LaunchedEffect(sleepAt) {
         if (sleepAt > 0L) {
-            while (System.currentTimeMillis() < sleepAt) delay(1000)
-            runCatching { p.pause() }; sleepAt = 0L
-        }
+            while (System.currentTimeMillis() < sleepAt) {
+                val left = sleepAt - System.currentTimeMillis()
+                runCatching { p.volume = if (left < 20_000L) (left / 20_000f).coerceIn(0.05f, 1f) else 1f }
+                delay(500)
+            }
+            runCatching { p.pause(); p.volume = 1f }; sleepAt = 0L
+        } else runCatching { p.volume = 1f }
     }
     LaunchedEffect(Unit) {
         while (true) {
@@ -173,6 +195,10 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     DisposableEffect(Unit) {
         val l = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) curS?.let { c ->
+                    val k = c.uri.toString(); val dd = p.duration
+                    if (dd > 0 && dS.dur[k] != dd) set { x -> x.copy(dur = x.dur + (k to dd)) }
+                }
                 if (state == Player.STATE_ENDED) curS?.let { c ->
                     val k = c.uri.toString()
                     set { x -> x.copy(played = x.played + k, pos = x.pos - k) }
@@ -184,6 +210,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
                 }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) Audio.ensureService(ctx)
                 if (!isPlaying && p.playbackState != Player.STATE_ENDED) curS?.let { c ->
                     val k = c.uri.toString(); val ps = p.currentPosition
                     if (ps > 0) set { x -> x.copy(pos = x.pos + (k to ps)) }
@@ -209,17 +236,17 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     Scaffold(containerColor = MaterialTheme.colorScheme.background, snackbarHost = { SnackbarHost(snack) },
         bottomBar = { Column {
             val c = cur
-            if (c != null && tab != 1) MiniPlayer(c) { tab = 1 }
+            if (c != null && tab != 1) MiniPlayer(c, d.skipSec) { tab = 1 }
             NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                 tabs.forEachIndexed { i, (l, ic) -> NavigationBarItem(tab == i, { tab = i }, { Icon(ic, null) }, label = { Text(l, maxLines = 1) }) }
             }
         } }) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (tab) {
-                0 -> Library(d, set, all, subfolders, (path.size <= 1), path.lastOrNull()?.name, enterFolder, goBack, cur) { c -> playClip(c, -1L); tab = 1 }
+                0 -> Library(d, set, all, subfolders, (path.size <= 1), path.lastOrNull()?.name, enterFolder, goBack, cur, ::refresh) { c -> playClip(c, -1L); tab = 1 }
                 1 -> when (skin) {
-                    Skin.SPOTIFY -> PlayerSpotify(d, set, cur, env, cuts, sleepAt, { sleepAt = it }, deleteMark) { gesture = true }
-                    Skin.YTM -> PlayerYtm(d, set, cur, env, cuts, sleepAt, { sleepAt = it }, deleteMark) { gesture = true }
+                    Skin.SPOTIFY -> PlayerSpotify(d, set, cur, env, cuts, sleepAt, { sleepAt = it }, deleteMark, { tab = 0 }) { gesture = true }
+                    Skin.YTM -> PlayerYtm(d, set, cur, env, cuts, sleepAt, { sleepAt = it }, deleteMark, { tab = 0 }) { gesture = true }
                     else -> PlayerTab(d, set, cur, env, cuts, sleepAt, { sleepAt = it }, deleteMark) { gesture = true }
                 }
                 2 -> MarksTab(d, all, deleteMark) { uri, ms ->
@@ -257,7 +284,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     }
 }
 
-@Composable fun MiniPlayer(cur: Clip, onOpen: () -> Unit) {
+@Composable fun MiniPlayer(cur: Clip, skipSec: Int, onOpen: () -> Unit) {
     val ctx = LocalContext.current
     val p = remember { Audio.player(ctx) }
     var pos by remember { mutableLongStateOf(0L) }
@@ -267,12 +294,18 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 3.dp) {
         Column {
             LinearProgressIndicator(progress = { (pos.toFloat() / dur).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp))
-            Row(Modifier.fillMaxWidth().clickable { onOpen() }.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.GraphicEq, null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(12.dp))
-                Text(cur.name.substringBeforeLast('.'), Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(fmt(pos), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                IconButton({ runCatching { if (p.isPlaying) p.pause() else p.play() } }) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "נגן או השהה") }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { onOpen() }.padding(start = 8.dp, top = 6.dp, bottom = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.GraphicEq, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(cur.name.substringBeforeLast('.'), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                        Text(if (dur > 1L) fmt(pos) + " / " + fmt(dur) else fmt(pos), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                IconButton({ runCatching { p.seekTo(maxOf(0L, p.currentPosition - skipSec * 1000L)) } }) { SkipIcon(true, skipSec, 26.dp) }
+                IconButton({ runCatching { if (p.isPlaying) p.pause() else p.play() } }) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "נגן או השהה", Modifier.size(30.dp)) }
+                IconButton({ runCatching { p.seekTo(p.currentPosition + skipSec * 1000L) } }) { SkipIcon(false, skipSec, 26.dp) }
             }
         }
     }
@@ -281,8 +314,10 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
 @Composable fun MarksTab(d: AppData, all: List<Clip>, onDelete: (Mark) -> Unit, onOpen: (String, Long) -> Unit) {
     val ctx = LocalContext.current
     var filter by rememberSaveable { mutableIntStateOf(0) }
-    val shown = d.marks.filter { filter == 0 || (filter == 1 && it.flag) || (filter == 2 && !it.flag) }
+    var q by rememberSaveable { mutableStateOf("") }
     fun nameOf(u: String) = all.find { it.uri.toString() == u }?.name?.substringBeforeLast('.') ?: "הקלטה שאינה זמינה"
+    val shown = d.marks.filter { filter == 0 || (filter == 1 && it.flag) || (filter == 2 && !it.flag) }
+        .filter { q.isBlank() || it.text.contains(q, ignoreCase = true) || nameOf(it.uri).contains(q, ignoreCase = true) }
     val groups = shown.groupBy { it.uri }.entries.toList()
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -294,7 +329,9 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
             FilterChip(selected = filter == 1, onClick = { filter = 1 }, label = { Text("דגלים") })
             FilterChip(selected = filter == 2, onClick = { filter = 2 }, label = { Text("סימניות") })
         }
-        if (shown.isEmpty()) Empty(Icons.Rounded.Flag, "עוד אין סימונים. בזמן ההשמעה לחץ על דגל או סימנייה")
+        if (d.marks.isNotEmpty()) OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth(), placeholder = { Text("חיפוש בהערות ובשמות הקלטות") }, singleLine = true,
+            leadingIcon = { Icon(Icons.Rounded.Search, null) }, shape = RoundedCornerShape(14.dp))
+        if (shown.isEmpty()) Empty(Icons.Rounded.Flag, if (d.marks.isEmpty()) "עוד אין סימונים. בזמן ההשמעה לחץ על דגל או סימנייה" else "אין סימונים שמתאימים לחיפוש")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
             groups.forEach { g ->
                 item(key = "h" + g.key) { Text(nameOf(g.key), Modifier.padding(top = 10.dp, bottom = 2.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
@@ -317,7 +354,9 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
         Spacer(Modifier.height(12.dp)); Text(text, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 
-@Composable fun Library(d: AppData, set: Setter, files: List<Clip>, folders: List<Folder>, atRoot: Boolean, folderName: String?, onEnter: (Folder) -> Unit, onBack: () -> Unit, cur: Clip?, onPlay: (Clip) -> Unit) {
+private val SORTS = listOf("name" to "לפי שם", "new" to "החדשות קודם", "old" to "הישנות קודם", "big" to "הגדולות קודם")
+
+@Composable fun Library(d: AppData, set: Setter, files: List<Clip>, folders: List<Folder>, atRoot: Boolean, folderName: String?, onEnter: (Folder) -> Unit, onBack: () -> Unit, cur: Clip?, onRefresh: () -> Unit, onPlay: (Clip) -> Unit) {
     val ctx = LocalContext.current
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { u ->
         if (u != null) runCatching {
@@ -327,14 +366,27 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     }
     var q by rememberSaveable { mutableStateOf("") }
     var onlyNew by rememberSaveable { mutableStateOf(false) }
-    var newest by rememberSaveable { mutableStateOf(false) }
+    var onlyProgress by rememberSaveable { mutableStateOf(false) }
+    var sortMenu by remember { mutableStateOf(false) }
     val base = files.filter { it.audio }
     val list = base.filter { q.isBlank() || it.name.contains(q, ignoreCase = true) }
         .filter { !onlyNew || it.uri.toString() !in d.played }
-        .let { if (newest) it.sortedByDescending { c -> c.mod } else it }
+        .filter { !onlyProgress || ((d.pos[it.uri.toString()] ?: 0L) > 5000L && it.uri.toString() !in d.played) }
+        .let { l ->
+            when (d.sort) {
+                "new" -> l.sortedByDescending { c -> c.mod }
+                "old" -> l.sortedBy { c -> c.mod }
+                "big" -> l.sortedByDescending { c -> c.size }
+                else -> l
+            }
+        }
     val shownFolders = folders.filter { q.isBlank() || it.name.contains(q, ignoreCase = true) }
+    val sortLabel = SORTS.firstOrNull { it.first == d.sort }?.second ?: "לפי שם"
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("הספרייה שלי", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("הספרייה שלי", Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            if (d.folder != null) IconButton(onRefresh) { Icon(Icons.Rounded.Refresh, "רענן את הרשימה") }
+        }
         FilledTonalButton({ pick.launch(null) }, Modifier.fillMaxWidth().height(48.dp)) {
             Icon(Icons.Rounded.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text(if (d.folder == null) "בחר תיקיית הקלטות" else "החלף תיקייה")
         }
@@ -347,15 +399,26 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
                 Text(if (atRoot) "בית" else (folderName ?: "תיקייה"), Modifier.weight(1f), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth(), placeholder = { Text("חיפוש הקלטה או תיקייה") }, singleLine = true,
-                leadingIcon = { Icon(Icons.Rounded.Search, null) }, shape = RoundedCornerShape(14.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                trailingIcon = { if (q.isNotEmpty()) IconButton({ q = "" }) { Icon(Icons.Rounded.Close, "נקה חיפוש") } },
+                shape = RoundedCornerShape(14.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 FilterChip(selected = onlyNew, onClick = { onlyNew = !onlyNew }, label = { Text("שלא הושמעו") })
-                FilterChip(selected = newest, onClick = { newest = !newest }, label = { Text("החדשות קודם") })
-                Text("${shownFolders.size} תיקיות · ${list.size} הקלטות", Modifier.align(Alignment.CenterVertically).padding(horizontal = 8.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FilterChip(selected = onlyProgress, onClick = { onlyProgress = !onlyProgress }, label = { Text("באמצע") })
+                Box {
+                    AssistChip(onClick = { sortMenu = true }, label = { Text(sortLabel) }, leadingIcon = { Icon(Icons.Rounded.SwapVert, null, Modifier.size(18.dp)) })
+                    DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                        SORTS.forEach { (id, label) ->
+                            DropdownMenuItem(text = { Text(label) }, onClick = { set { it.copy(sort = id) }; sortMenu = false },
+                                leadingIcon = { if (d.sort == id) Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) })
+                        }
+                    }
+                }
+                Text("${shownFolders.size} תיקיות · ${list.size} הקלטות", Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (d.folder == null) Empty(Icons.Rounded.LibraryMusic, "בחר תיקייה כדי להתחיל")
-        else if (list.isEmpty() && shownFolders.isEmpty()) Empty(Icons.Rounded.LibraryMusic, if (q.isBlank()) "התיקייה ריקה" else "אין תוצאות לחיפוש")
+        else if (list.isEmpty() && shownFolders.isEmpty()) Empty(Icons.Rounded.LibraryMusic, if (q.isNotBlank()) "אין תוצאות לחיפוש" else if (onlyNew || onlyProgress) "אין הקלטות שמתאימות לסינון" else "התיקייה ריקה")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
             items(shownFolders, key = { "f:" + it.name }) { f ->
                 Card(Modifier.fillMaxWidth().clickable { onEnter(f) }, shape = RoundedCornerShape(16.dp),
@@ -375,18 +438,39 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
                 val done = k in d.played; val active = c.uri == cur?.uri
                 val nm = d.marks.count { it.uri == k }
                 val resume = d.pos[k] ?: 0L
+                val total = d.dur[k] ?: 0L
+                var menu by remember { mutableStateOf(false) }
+                val parts = ArrayList<String>()
+                if (total > 0L) parts.add(fmt(total))
+                parts.add("%.1f MB".format(c.size / 1e6))
+                if (done) parts.add("הושמע") else if (resume > 5000L) parts.add("נעצר ב-${fmt(resume)}")
+                if (nm > 0) parts.add("$nm סימונים")
                 Card(Modifier.fillMaxWidth().clickable { onPlay(c) }, shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = if (active) MaterialTheme.colorScheme.primary.copy(alpha = .14f) else MaterialTheme.colorScheme.surfaceContainer)) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = .15f)), Alignment.Center) {
-                            Icon(if (done) Icons.Rounded.CheckCircle else Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.primary)
+                    Column {
+                        Row(Modifier.padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = .15f)), Alignment.Center) {
+                                Icon(if (active) Icons.Rounded.GraphicEq else if (done) Icons.Rounded.CheckCircle else Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(c.name.substringBeforeLast('.'), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                                Text(parts.joinToString("  •  "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Box {
+                                IconButton({ menu = true }) { Icon(Icons.Rounded.MoreVert, "אפשרויות להקלטה") }
+                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                    DropdownMenuItem(text = { Text(if (done) "סמן כלא הושמע" else "סמן כהושמע") },
+                                        leadingIcon = { Icon(Icons.Rounded.CheckCircle, null, Modifier.size(20.dp)) },
+                                        onClick = { menu = false; set { x -> x.copy(played = if (k in x.played) x.played - k else x.played + k) } })
+                                    if (resume > 0L) DropdownMenuItem(text = { Text("אפס את המקום השמור") },
+                                        leadingIcon = { Icon(Icons.Rounded.RestartAlt, null, Modifier.size(20.dp)) },
+                                        onClick = { menu = false; set { x -> x.copy(pos = x.pos - k) } })
+                                }
+                            }
                         }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(c.name.substringBeforeLast('.'), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                            Text("%.1f MB".format(c.size / 1e6) + (if (done) "  •  הושמע" else "") + (if (resume > 5000 && !done) "  •  נעצר ב-${fmt(resume)}" else "") + (if (nm > 0) "  •  $nm סימונים" else ""),
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        if (total > 0L && resume > 0L && !done)
+                            LinearProgressIndicator(progress = { (resume.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp))
                     }
                 }
             }
@@ -472,7 +556,11 @@ fun peaks(env: FloatArray?, n: Int): FloatArray {
     val sleepLeft = if (sleepAt > now) (sleepAt - now) / 60000 + 1 else 0L
 
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(cur.name.substringBeforeLast('.'), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column {
+            Text(cur.name.substringBeforeLast('.'), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (env == null) "מנתח את ההקלטה..." else "פרק ${cuts.count { it <= pos } + 1} מתוך ${cuts.size + 1}  •  ${marks.size} סימונים",
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Card(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.padding(14.dp).fillMaxSize()) {
                 Wave(env, pos, dur, cuts, marks, modifier = Modifier.fillMaxWidth().weight(1f).heightIn(min = 90.dp)) { seek(it) }
@@ -485,11 +573,11 @@ fun peaks(env: FloatArray?, n: Int): FloatArray {
         }
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Alignment.CenterVertically) {
             IconButton({ prevChapter() }, Modifier.size(46.dp)) { Icon(Icons.Rounded.SkipPrevious, "פרק קודם", Modifier.size(28.dp)) }
-            IconButton({ seek(pos - 30_000) }, Modifier.size(52.dp)) { Icon(Icons.Rounded.Replay30, "אחורה 30 שניות", Modifier.size(32.dp)) }
+            IconButton({ seek(pos - d.skipSec * 1000L) }, Modifier.size(52.dp)) { SkipIcon(true, d.skipSec, 34.dp) }
             FilledIconButton({ runCatching { if (p.isPlaying) p.pause() else p.play() } }, Modifier.size(70.dp)) {
                 Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "נגן או השהה", Modifier.size(40.dp))
             }
-            IconButton({ seek(pos + 30_000) }, Modifier.size(52.dp)) { Icon(Icons.Rounded.Forward30, "קדימה 30 שניות", Modifier.size(32.dp)) }
+            IconButton({ seek(pos + d.skipSec * 1000L) }, Modifier.size(52.dp)) { SkipIcon(false, d.skipSec, 34.dp) }
             IconButton({ nextChapter() }, Modifier.size(46.dp)) { Icon(Icons.Rounded.SkipNext, "פרק הבא", Modifier.size(28.dp)) }
         }
         PlayerOptions(d, set, p, sleepLeft, onSleep)
@@ -582,8 +670,9 @@ fun peaks(env: FloatArray?, n: Int): FloatArray {
                 runCatching {
                     if (abs(dx) > abs(dy) && abs(dx) > 80) {
                         val fwd = if (dNow.invert) dx < 0 else dx > 0
-                        p.seekTo(maxOf(0, p.currentPosition + if (fwd) 30_000 else -30_000))
-                        if (fwd) show("+30 שניות", Icons.Rounded.Forward30) else show("-30 שניות", Icons.Rounded.Replay30)
+                        val sk = dNow.skipSec * 1000L
+                        p.seekTo(maxOf(0L, p.currentPosition + if (fwd) sk else -sk))
+                        if (fwd) show("+${dNow.skipSec} שניות", Icons.Rounded.FastForward) else show("-${dNow.skipSec} שניות", Icons.Rounded.FastRewind)
                     } else if (dy < -80) { val pos = p.currentPosition; set { x -> x.copy(marks = x.marks + Mark(key, pos, "סימנייה")) }; show("סימנייה נוספה", Icons.Rounded.Bookmark) }
                     else if (dy > 80) { val n = cuts.firstOrNull { it > p.currentPosition }; if (n != null) { p.seekTo(n); show("פרק הבא", Icons.Rounded.SkipNext) } else show("אין פרק הבא", Icons.Rounded.SkipNext) }
                 }
@@ -596,8 +685,8 @@ fun peaks(env: FloatArray?, n: Int): FloatArray {
             Spacer(Modifier.height(12.dp))
             Text(fmt(gpos), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text(if (d.invert) "הקשה: נגן/השהה  •  שמאלה: קדימה 30 שניות  •  ימינה: אחורה  •  למעלה: סימנייה  •  למטה: פרק הבא  •  לחיצה ארוכה: דגל  •  הקשה כפולה: הקראה"
-             else "הקשה: נגן/השהה  •  ימינה: קדימה 30 שניות  •  שמאלה: אחורה  •  למעלה: סימנייה  •  למטה: פרק הבא  •  לחיצה ארוכה: דגל  •  הקשה כפולה: הקראה",
+        Text(if (d.invert) "הקשה: נגן/השהה  •  שמאלה: קדימה ${d.skipSec} שניות  •  ימינה: אחורה  •  למעלה: סימנייה  •  למטה: פרק הבא  •  לחיצה ארוכה: דגל  •  הקשה כפולה: הקראה"
+             else "הקשה: נגן/השהה  •  ימינה: קדימה ${d.skipSec} שניות  •  שמאלה: אחורה  •  למעלה: סימנייה  •  למטה: פרק הבא  •  לחיצה ארוכה: דגל  •  הקשה כפולה: הקראה",
             Modifier.align(Alignment.BottomCenter).padding(24.dp), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.align(Alignment.TopStart).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilledTonalButton(onExit) { Icon(Icons.Rounded.Close, null); Spacer(Modifier.width(6.dp)); Text("יציאה") }

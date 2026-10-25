@@ -35,4 +35,4 @@ class App : Application() {
     }
 }
 
-object BuildTag { const val VERSION = "2.0" }
+object BuildTag { const val VERSION = "2.1" }

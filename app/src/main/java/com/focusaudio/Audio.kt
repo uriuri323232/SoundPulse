@@ -65,15 +65,26 @@ object Audio {
     var fx: Fx? = null
     fun player(c: Context): ExoPlayer = p ?: ExoPlayer.Builder(c.applicationContext, DefaultMediaSourceFactory(c.applicationContext, DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true)))
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
-        .setHandleAudioBecomingNoisy(true).setWakeMode(C.WAKE_MODE_LOCAL).build()
+        .setHandleAudioBecomingNoisy(true).setWakeMode(C.WAKE_MODE_LOCAL)
+        .setSeekBackIncrementMs(30_000L).setSeekForwardIncrementMs(30_000L).build()
         .also { p = it; it.setSeekParameters(SeekParameters.CLOSEST_SYNC); fx = Fx(it.audioSessionId) }
+
+    private fun item(uri: Uri, name: String) =
+        MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(name).build()).build()
 
     fun play(c: Context, uri: Uri, name: String, startMs: Long = 0L) {
         val p = player(c)
-        runCatching {
-            p.setMediaItem(MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(name).build()).build(), startMs)
-            p.prepare(); p.play()
-        }
+        runCatching { p.setMediaItem(item(uri, name), startMs); p.prepare(); p.play() }
+        ensureService(c)
+    }
+
+    /** Loads a recording at a position without starting it (used to restore the last session on launch). */
+    fun load(c: Context, uri: Uri, name: String, startMs: Long) {
+        val p = player(c)
+        runCatching { p.setMediaItem(item(uri, name), startMs); p.prepare() }
+    }
+
+    fun ensureService(c: Context) {
         runCatching { ContextCompat.startForegroundService(c.applicationContext, Intent(c.applicationContext, PlaybackService::class.java)) }
     }
 }
