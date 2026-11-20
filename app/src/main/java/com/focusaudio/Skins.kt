@@ -69,14 +69,15 @@ private val Coral = Color(0xFFE5566D)
         fun nextChapter() { val t = cuts.firstOrNull { it > pos + 500 }; if (t != null) seek(t) else seek(dur) }
         val sleepLeft = if (sleepAt > now) (sleepAt - now) / 60000 + 1 else 0L
 
-        Column(Modifier.fillMaxSize().padding(horizontal = 18.dp).padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        val compact = isCompactScreen()
+        Column(Modifier.fillMaxSize().then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier).padding(horizontal = if (isNarrowScreen()) 12.dp else 18.dp).padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClose) { Icon(Icons.Rounded.KeyboardArrowDown, "חזרה לספרייה", tint = White) }
                 Text(if (skin == Skin.YTM) "הנגן" else "מושמע מתוך הספרייה", style = MaterialTheme.typography.labelMedium, color = Color(0xCCFFFFFF))
                 IconButton({ sheet = true }) { Icon(Icons.Rounded.MoreVert, "פרקים וסימונים", tint = White) }
             }
             // "art" = the live waveform, filling the free space
-            Box(Modifier.fillMaxWidth().weight(1f).heightIn(min = 120.dp).clip(RoundedCornerShape(if (skin == Skin.YTM) 10.dp else 16.dp))
+            Box(Modifier.fillMaxWidth().then(if (compact) Modifier.height(170.dp) else Modifier.weight(1f).heightIn(min = 120.dp)).clip(RoundedCornerShape(if (skin == Skin.YTM) 10.dp else 16.dp))
                 .background(Brush.linearGradient(listOf(accent.copy(alpha = .9f), Color(pal.c2).copy(alpha = .55f), Color(pal.c3).copy(alpha = .4f))))) {
                 Box(Modifier.align(Alignment.Center).fillMaxSize().padding(14.dp)) { Wave(env, pos, dur, cuts, marks, modifier = Modifier.fillMaxSize()) { seek(it) } }
                 Text(cur.name.substringBeforeLast('.'), Modifier.align(Alignment.BottomStart).padding(14.dp),

@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -57,6 +58,14 @@ import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
 typealias Setter = ((AppData) -> AppData) -> Unit
+
+/** True on short or narrow screens (small phones, split-screen, landscape): layouts switch to scrolling and tighter sizes. */
+@Composable fun isCompactScreen(): Boolean {
+    val c = LocalConfiguration.current
+    return c.screenHeightDp < 700 || c.screenWidthDp < 360
+}
+
+@Composable fun isNarrowScreen(): Boolean = LocalConfiguration.current.screenWidthDp < 360
 
 private val Teal = Color(0xFF0E9594); private val Coral = Color(0xFFE5566D)
 private val LightC = lightColorScheme(primary = Color(0xFF0B7F7E), secondary = Color(0xFF3D5A80), tertiary = Color(0xFFE0A030),
@@ -237,8 +246,10 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
         bottomBar = { Column {
             val c = cur
             if (c != null && tab != 1) MiniPlayer(c, d.skipSec) { tab = 1 }
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-                tabs.forEachIndexed { i, (l, ic) -> NavigationBarItem(tab == i, { tab = i }, { Icon(ic, null) }, label = { Text(l, maxLines = 1) }) }
+            val narrow = isNarrowScreen()
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer, modifier = if (narrow) Modifier.heightIn(max = 68.dp) else Modifier) {
+                tabs.forEachIndexed { i, (l, ic) -> NavigationBarItem(tab == i, { tab = i }, { Icon(ic, null, Modifier.size(if (narrow) 22.dp else 24.dp)) },
+                    label = { Text(l, maxLines = 1, fontSize = if (narrow) 10.sp else 12.sp, overflow = TextOverflow.Ellipsis) }) }
             }
         } }) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
@@ -290,6 +301,7 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
     var pos by remember { mutableLongStateOf(0L) }
     var dur by remember { mutableLongStateOf(1L) }
     var playing by remember { mutableStateOf(false) }
+    val btn = if (isNarrowScreen()) 40.dp else 48.dp
     LaunchedEffect(Unit) { while (true) { runCatching { pos = p.currentPosition; dur = p.duration.let { if (it > 0) it else 1L }; playing = p.isPlaying }; delay(500) } }
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 3.dp) {
         Column {
@@ -303,9 +315,9 @@ fun marksText(marks: List<Mark>, nameOf: (String) -> String): String =
                         Text(if (dur > 1L) fmt(pos) + " / " + fmt(dur) else fmt(pos), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                IconButton({ runCatching { p.seekTo(maxOf(0L, p.currentPosition - skipSec * 1000L)) } }) { SkipIcon(true, skipSec, 26.dp) }
-                IconButton({ runCatching { if (p.isPlaying) p.pause() else p.play() } }) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "נגן או השהה", Modifier.size(30.dp)) }
-                IconButton({ runCatching { p.seekTo(p.currentPosition + skipSec * 1000L) } }) { SkipIcon(false, skipSec, 26.dp) }
+                IconButton({ runCatching { p.seekTo(maxOf(0L, p.currentPosition - skipSec * 1000L)) } }, Modifier.size(btn)) { SkipIcon(true, skipSec, 26.dp) }
+                IconButton({ runCatching { if (p.isPlaying) p.pause() else p.play() } }, Modifier.size(btn)) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "נגן או השהה", Modifier.size(30.dp)) }
+                IconButton({ runCatching { p.seekTo(p.currentPosition + skipSec * 1000L) } }, Modifier.size(btn)) { SkipIcon(false, skipSec, 26.dp) }
             }
         }
     }
@@ -555,13 +567,14 @@ fun peaks(env: FloatArray?, n: Int): FloatArray {
     fun nextChapter() { val t = cuts.firstOrNull { it > pos + 500 }; if (t != null) seek(t) else seek(dur) }
     val sleepLeft = if (sleepAt > now) (sleepAt - now) / 60000 + 1 else 0L
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    val compact = isCompactScreen()
+    Column(Modifier.fillMaxSize().then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier).padding(horizontal = if (isNarrowScreen()) 12.dp else 16.dp).padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp)) {
         Column {
             Text(cur.name.substringBeforeLast('.'), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(if (env == null) "מנתח את ההקלטה..." else "פרק ${cuts.count { it <= pos } + 1} מתוך ${cuts.size + 1}  •  ${marks.size} סימונים",
                 style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Card(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Card(Modifier.fillMaxWidth().then(if (compact) Modifier.height(170.dp) else Modifier.weight(1f)), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.padding(14.dp).fillMaxSize()) {
                 Wave(env, pos, dur, cuts, marks, modifier = Modifier.fillMaxWidth().weight(1f).heightIn(min = 90.dp)) { seek(it) }
                 Row(Modifier.fillMaxWidth().padding(top = 6.dp), Arrangement.SpaceBetween) {
